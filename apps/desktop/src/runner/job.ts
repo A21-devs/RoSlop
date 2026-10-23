@@ -212,8 +212,12 @@ export class Job {
 
   private why(code: number | null, spawnError?: string): string {
     if (spawnError) return spawnError;
-    if (this.failedResult && this.finalText) return this.finalText;
     const tail = this.stderr.trim().split("\n").slice(-6).join("\n");
-    return tail || `Stopped with exit code ${code}`;
+    const text = (this.failedResult && this.finalText) || tail || `Stopped with exit code ${code}`;
+    // The desktop Claude app and the command line keep separate sign-ins.
+    if (/log ?in|api key|authenticat|credential|unauthori[sz]ed/i.test(text)) {
+      return `${text}\n\nThe command line isn't signed in on this computer. Open Command Prompt, run claude, sign in, then retry the task.`;
+    }
+    return text;
   }
 }
