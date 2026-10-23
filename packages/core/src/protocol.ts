@@ -1,5 +1,5 @@
 import { AGENT } from "./agents";
-import type { AgentId, Priority } from "./types";
+import type { AgentId, MarketItem, Priority } from "./types";
 
 // Agents talk back to the app with plain lines in their output:
 //   ASK: Which layout? | A | B
@@ -53,6 +53,27 @@ export function readPlan(text: string): PlannedTask[] {
       priority: t.priority === "high" || t.priority === "low" ? t.priority : "normal",
       after: Array.isArray(t.after) ? t.after.filter((n): n is number => typeof n === "number") : undefined,
     }));
+}
+
+// Pulse hands chart pulls back as a ```market block: { "sort": "...", "items": [...] }
+export function readMarket(text: string): { sort: string; items: MarketItem[] } | null {
+  const m = text.match(/```market\s*([\s\S]*?)```/);
+  if (!m) return null;
+  try {
+    const raw = JSON.parse(m[1]);
+    const items: MarketItem[] = (Array.isArray(raw.items) ? raw.items : [])
+      .filter((i: unknown): i is Record<string, unknown> => !!i && typeof i === "object" && typeof (i as { name?: unknown }).name === "string")
+      .map((i: Record<string, unknown>) => ({
+        universe_id: typeof i.universe_id === "number" ? i.universe_id : null,
+        name: String(i.name),
+        genre: typeof i.genre === "string" ? i.genre : "",
+        playing: Number(i.playing) || 0,
+        likes: typeof i.likes === "number" ? i.likes : null,
+      }));
+    return items.length ? { sort: typeof raw.sort === "string" ? raw.sort : "rising", items } : null;
+  } catch {
+    return null;
+  }
 }
 
 // What the Lead says to you, without the tasks block.

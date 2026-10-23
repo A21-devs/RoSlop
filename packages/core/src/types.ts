@@ -8,7 +8,7 @@ export type Who = AgentId | "you";
 
 export type Stage = "pitched" | "designed" | "assets" | "built" | "balanced" | "art" | "ready" | "live" | "graded";
 
-export type TaskStatus = "queued" | "held" | "working" | "needs_you" | "done" | "dropped" | "failed";
+export type TaskStatus = "queued" | "held" | "paused" | "working" | "needs_you" | "done" | "dropped" | "failed";
 export type Priority = "high" | "normal" | "low";
 
 export interface Row {
@@ -137,6 +137,20 @@ export interface UsageWindow extends Row {
   tokens: number;
 }
 
+export interface MarketItem {
+  universe_id: number | null;
+  name: string;
+  genre: string;
+  playing: number;
+  likes: number | null;
+}
+
+export interface MarketSnapshot extends Row {
+  source: string;
+  sort: string;
+  items: MarketItem[];
+}
+
 export interface AppEntry {
   name: string;
   path: string;
@@ -171,6 +185,7 @@ export interface Tables {
   messages: Message;
   game_stats: GameStat;
   usage_windows: UsageWindow;
+  market_snapshots: MarketSnapshot;
 }
 
 export type TableName = keyof Tables;
