@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Crash } from "./Crash";
+import { CrewBar } from "./CrewBar";
 import { AGENTS, pace, pct } from "@roslop/core";
 import { useData, useSnap, useToasts, useUsage } from "../data/store";
 import { Av, Icon, Logo, Ring, type IconName } from "./bits";
@@ -154,6 +155,7 @@ export function Layout() {
       <Sidebar />
       <main className="main">
         <Top />
+        <CrewBar />
         <Crash key={useLocation().pathname}>
           <Outlet />
         </Crash>

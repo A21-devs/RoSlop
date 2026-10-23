@@ -214,3 +214,4 @@ h1.page { font-size: 26px; font-weight: 600; letter-spacing: -0.03em; line-heigh
 .toast.bad { border-color: color-mix(in srgb, var(--bad) 50%, var(--line-2)); }
 .grid2 > *, .split > * { min-width: 0; }
 @media (max-width: 860px) { .toasts { left: 14px; right: 14px; bottom: 84px; max-width: none; } }
+.crewbar { display: flex; align-items: center; gap: 10px; padding: 9px 20px; background: color-mix(in srgb, var(--warn) 9%, var(--panel)); border-bottom: 1px solid color-mix(in srgb, var(--warn) 30%, var(--line)); font-size: 12.5px; }

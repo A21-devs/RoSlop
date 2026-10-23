@@ -46,9 +46,13 @@ function resolveCommand(name: Provider): Command | null {
   const found = which(name);
   if (!found) return null;
   if (win && found.toLowerCase().endsWith(".cmd")) {
-    const script = readFileSync(found, "utf8").match(/"%~?dp0%?\\([^"]+\.js)"/i)?.[1];
-    if (!script) return null;
-    return { file: process.execPath, prefix: [resolve(dirname(found), script)], env: { ELECTRON_RUN_AS_NODE: "1" } };
+    const shim = readFileSync(found, "utf8");
+    const script = shim.match(/"%~?dp0%?\\([^"]+\.js)"/i)?.[1];
+    if (script) return { file: process.execPath, prefix: [resolve(dirname(found), script)], env: { ELECTRON_RUN_AS_NODE: "1" } };
+    // Newer installs point the shim at a native binary instead.
+    const exe = shim.match(/"%~?dp0%?\\([^"]+\.exe)"/i)?.[1];
+    if (exe) return { file: resolve(dirname(found), exe), prefix: [], env: {} };
+    return null;
   }
   return { file: found, prefix: [], env: {} };
 }

@@ -11,6 +11,8 @@ export interface RunnerStatus {
   studios_open: number;
   working: string[];
   last_error: string | null;
+  // Plain words on why nothing is starting, when that's the case.
+  note: string | null;
 }
 
 export interface DesktopBridge {
