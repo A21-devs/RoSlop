@@ -1,4 +1,4 @@
-import { canStart, concurrency, type AgentId, type Priority, type Settings, type Task } from "@roslop/core";
+import { canStart, concurrency, waitFor, type AgentId, type Priority, type Settings, type Task } from "@roslop/core";
 
 export interface Board {
   open: Task[];
@@ -16,6 +16,8 @@ export interface Plan {
   start: { task: Task; estimate: number }[];
   hold: Task[];
   unhold: Task[];
+  // Minutes until the first task blocked on pace can start. null means not this window.
+  wait?: number | null;
 }
 
 const RANK: Record<Priority, number> = { high: 0, normal: 1, low: 2 };
@@ -45,6 +47,7 @@ export function decide(b: Board): Plan {
     const pace = canStart({ elapsed: b.elapsed, used: b.used, reserved, cap: settings.cap }, estimate);
 
     if (!pace.ok) {
+      if (plan.wait === undefined) plan.wait = waitFor({ elapsed: b.elapsed, used: b.used, reserved, cap: settings.cap }, estimate);
       if (holdable && task.status === "queued") plan.hold.push(task);
       if (!holdable && task.status === "held") plan.unhold.push(task);
       continue;

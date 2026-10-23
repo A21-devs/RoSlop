@@ -1,6 +1,6 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { app } from "electron";
-import { estimate, serverFor, windowElapsed, type Game, type Machine, type RunnerStatus, type Settings, type Task } from "@roslop/core";
+import { estimate, serverFor, windowElapsed, WINDOW_MIN, type Game, type Machine, type RunnerStatus, type Settings, type Task } from "@roslop/core";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { allKeys } from "../keys";
@@ -234,7 +234,11 @@ export class Runner {
       await this.checkCli(live.settings.provider);
     }
     if (!this.cli) {
-      const install = live.settings.provider === "claude" ? "npm install -g @anthropic-ai/claude-code, then run claude once to sign in" : "npm install -g @openai/codex, then run codex login";
+      const install = live.settings.provider === "codex"
+        ? "npm install -g @openai/codex, then run codex login"
+        : process.platform === "win32"
+          ? "open PowerShell and run irm https://claude.ai/install.ps1 | iex, then run claude once to sign in"
+          : "curl -fsSL https://claude.ai/install.sh | bash, then run claude once to sign in";
       return this.say(`${name} isn't working on this computer (${this.cliDetail ?? "not checked"}). If it's not installed, in a terminal: ${install}. Then hit Check again.`);
     }
 
@@ -287,11 +291,13 @@ export class Runner {
     const running = open.filter(t => t.status === "working").length + plan.start.length;
     if (running) return this.say(null);
     const blockedByParent = waiting.every(t => t.parent_id && !doneParents.has(t.parent_id));
+    const left = Math.max(1, Math.ceil(WINDOW_MIN - windowElapsed(window.started_at)));
+    const when = plan.wait === null
+      ? `You've used ${Math.round(window.used * 100)}% of this 5 hour window and the cap is ${Math.round(live.settings.cap * 100)}%, so it waits for the window to reset in about ${left} min. You can raise the cap in Settings, Usage.`
+      : `The next task starts in about ${Math.max(1, plan.wait ?? 1)} min. ${Math.round(window.used * 100)}% of this 5 hour window is used, and RoSlop spreads work out so it lasts the whole window.`;
     this.say(blockedByParent
       ? "Everything queued is waiting on an earlier task that hasn't finished."
-      : plan.hold.length || waiting.some(t => t.status === "held")
-        ? "Holding off so you don't run out of usage this window. It picks back up on its own."
-        : "Waiting for room in your usage window. It starts on its own.");
+      : `Pacing your usage. ${when}`);
   }
 
   // Catches pauses and drops if realtime missed them.

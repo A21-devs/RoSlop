@@ -1,7 +1,7 @@
 // All usage numbers are fractions of one 5-hour window: 0.41 means 41% used.
 
 export const WINDOW_MIN = 300;
-const HEADSTART_MIN = 30;
+const HEADSTART_MIN = 90;
 
 export interface PaceState {
   elapsed: number;
@@ -31,6 +31,13 @@ export function canStart(s: PaceState, estimate: number): { ok: boolean; why?: s
   if (after > s.cap) return { ok: false, why: "would pass your cap this window" };
   if (after > allowance(s.elapsed, s.cap)) return { ok: false, why: "ahead of pace, waiting a bit" };
   return { ok: true };
+}
+
+// Minutes until something needing `need` more of the window fits, or null if it won't fit this window.
+export function waitFor(s: PaceState, need: number): number | null {
+  const after = s.used + s.reserved + need;
+  if (after > s.cap) return null;
+  return Math.max(0, Math.ceil((after / s.cap) * WINDOW_MIN - HEADSTART_MIN - s.elapsed));
 }
 
 export function projected(used: number, elapsed: number): number {

@@ -6,7 +6,7 @@ export type StreamEvent =
   | { kind: "text"; text: string }
   | { kind: "tool"; name: string }
   | { kind: "result"; text: string; error: boolean }
-  | { kind: "limit"; used: number };
+  | { kind: "limit"; used: number | null; resets: number | null };
 
 export interface Parser {
   read(line: string): StreamEvent[];
@@ -43,6 +43,25 @@ function codexUsage(u: Json | undefined): number {
 const LIMIT_KEYS = ["utilization", "used_percent", "used_percentage", "percent_used", "usage"];
 
 // Looks for something like { rateLimitType: "five_hour", utilization: 0.42 } anywhere in the line.
+// When the five hour window resets, as ms since epoch.
+function findReset(v: unknown, depth = 0): number | null {
+  if (!v || typeof v !== "object" || depth > 4) return null;
+  const o = v as Json;
+  const type = String(o.rateLimitType ?? o.rate_limit_type ?? o.type ?? "").toLowerCase();
+  if (/seven|week|opus|sonnet/.test(type)) return null;
+  for (const k of ["resetsAt", "resets_at", "resetAt", "reset_at"]) {
+    const r = o[k];
+    const ms = typeof r === "number" ? (r < 1e12 ? r * 1000 : r) : typeof r === "string" ? Date.parse(r) : NaN;
+    if (ms > 0) return ms;
+  }
+  for (const [k, child] of Object.entries(o)) {
+    if (k === "message" || k === "content" || Array.isArray(child)) continue;
+    const found = findReset(child, depth + 1);
+    if (found !== null) return found;
+  }
+  return null;
+}
+
 function findLimit(v: unknown, depth = 0): number | null {
   if (!v || typeof v !== "object" || depth > 4) return null;
   const o = v as Json;
@@ -90,7 +109,8 @@ export function claudeParser(): Parser {
         out.push({ kind: "result", text: typeof o.result === "string" ? o.result : "", error: !!o.is_error || (!!o.subtype && o.subtype !== "success") });
       } else if (typeof o.type === "string" && o.type.includes("rate_limit")) {
         const used = findLimit(o);
-        if (used !== null) out.push({ kind: "limit", used });
+        const resets = findReset(o);
+        if (used !== null || resets !== null) out.push({ kind: "limit", used, resets });
       }
       return out;
     },
@@ -140,7 +160,8 @@ export function codexParser(): Parser {
 
       if (o.rate_limits || msg.rate_limits) {
         const used = findLimit(o.rate_limits ?? msg.rate_limits);
-        if (used !== null) out.push({ kind: "limit", used });
+        const resets = findReset(o.rate_limits ?? msg.rate_limits);
+        if (used !== null || resets !== null) out.push({ kind: "limit", used, resets });
       }
       return out;
     },

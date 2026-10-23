@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { scanApps } from "./apps";
 import { getKey, setKey } from "./keys";
 import { Runner } from "./runner";
-import { fixPath } from "./runner/cli";
+import { cliPaths, fixPath } from "./runner/cli";
 
 let win: BrowserWindow | null = null;
 let quitting = false;
@@ -82,6 +82,7 @@ function handlers() {
     const r = await dialog.showOpenDialog(win!, { properties: ["openDirectory", "createDirectory"] });
     return r.canceled ? null : r.filePaths[0] ?? null;
   });
+  ipcMain.handle("roslop:setCliPath", (_, provider: "claude" | "codex", path: string | null) => cliPaths.set(provider, path ?? undefined));
   ipcMain.handle("roslop:pickFile", async () => {
     const r = await dialog.showOpenDialog(win!, { properties: ["openFile"] });
     return r.canceled ? null : r.filePaths[0] ?? null;

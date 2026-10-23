@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowance, canStart, concurrency, pace, projected } from "./pacing";
+import { allowance, canStart, concurrency, pace, projected, waitFor } from "./pacing";
 import { readPlan, readSignal } from "./protocol";
 
 describe("pacing", () => {
@@ -8,7 +8,7 @@ describe("pacing", () => {
   });
 
   it("holds work that would run ahead of pace", () => {
-    const r = canStart({ elapsed: 30, used: 0.15, reserved: 0.03, cap: 0.8 }, 0.04);
+    const r = canStart({ elapsed: 30, used: 0.3, reserved: 0.03, cap: 0.8 }, 0.04);
     expect(r.ok).toBe(false);
   });
 
@@ -24,7 +24,15 @@ describe("pacing", () => {
       if (canStart({ elapsed: minute, used, reserved: 0, cap: 0.8 }, 0.04).ok) used += 0.04;
       else minute++;
     }
-    expect(used).toBeLessThan(0.2);
+    expect(used).toBeLessThan(0.3);
+  });
+
+  it("says how long until the next job fits", () => {
+    const s = { elapsed: 10, used: 0.3, reserved: 0, cap: 0.8 };
+    expect(canStart(s, 0.04).ok).toBe(false);
+    expect(waitFor(s, 0.04)).toBe(28);
+    expect(canStart({ ...s, elapsed: 38 }, 0.04).ok).toBe(true);
+    expect(waitFor({ ...s, used: 0.79 }, 0.04)).toBeNull();
   });
 
   it("reads pace and projection", () => {

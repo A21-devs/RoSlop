@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { windowExpired, type UsageWindow } from "@roslop/core";
+import { WINDOW_MIN, windowExpired, type UsageWindow } from "@roslop/core";
 import { fail } from "./db";
 
 const RECENT_MIN = 15;
@@ -50,12 +50,20 @@ export class Usage {
     );
   }
 
-  // The CLI told us how much of the window is gone. If it says more than we counted, it wins.
-  raise(used: number) {
+  // The CLI told us how much of the window is gone and when it resets. Its numbers win over
+  // ours, so time you spent in Claude elsewhere counts and pacing follows the real window.
+  raise(used: number | null, resets: number | null) {
     return this.serial(async () => {
       const w = await this.latest();
-      if (!w || windowExpired(w.started_at) || used <= w.used) return;
-      await this.db.from("usage_windows").update({ used }).eq("id", w.id);
+      if (!w || windowExpired(w.started_at)) return;
+      const patch: Partial<UsageWindow> = {};
+      if (used !== null && used > w.used) patch.used = used;
+      const now = Date.now();
+      if (resets && resets > now && resets <= now + WINDOW_MIN * 60_000) {
+        const start = resets - WINDOW_MIN * 60_000;
+        if (Math.abs(start - Date.parse(w.started_at)) > 2 * 60_000) patch.started_at = new Date(start).toISOString();
+      }
+      if (Object.keys(patch).length) await this.db.from("usage_windows").update(patch).eq("id", w.id);
     });
   }
 
