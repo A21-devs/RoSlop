@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { AGENT, ago, type Verdict } from "@roslop/core";
 import { decide } from "../data/actions";
 import { useGameFilter, useSnap } from "../data/store";
-import { Av, Icon, Media, Seg } from "../ui/bits";
+import { Av, Icon, Media, Seg, agentName } from "../ui/bits";
 
 type Show = "waiting" | "approved" | "changes";
 
@@ -56,7 +56,7 @@ export function Review() {
               <Media src={x.url} kind={x.kind} style={{ width: 86, flex: "none", borderRadius: 6 }} />
               <div className="grow">
                 <div style={{ fontWeight: 500, fontSize: 12.5, lineHeight: 1.3 }}>{x.title}</div>
-                <div className="row" style={{ marginTop: 5, gap: 6 }}><Av who={x.agent} size="sm" /><span className="muted" style={{ fontSize: 11.5 }}>{AGENT[x.agent].name}</span></div>
+                <div className="row" style={{ marginTop: 5, gap: 6 }}><Av who={x.agent} size="sm" /><span className="muted" style={{ fontSize: 11.5 }}>{agentName(x.agent)}</span></div>
               </div>
             </Link>
           ))}
@@ -79,21 +79,21 @@ export function Review() {
             <span className="muted small hide-m">A to approve, C to write a note, R to reject, arrows to move.</span>
           </div>
           <div style={{ borderLeft: "1px solid var(--line)", padding: 20, display: "flex", flexDirection: "column", gap: 16, background: "var(--side)" }}>
-            <div className="row"><Av who={p.agent} size="lg" /><div><div style={{ fontWeight: 600 }}>{AGENT[p.agent].name}</div><div className="muted small">{s.games.find(g => g.id === p.game_id)?.name ?? "No game"} · {ago(p.created_at)} ago</div></div></div>
+            <div className="row"><Av who={p.agent} size="lg" /><div><div style={{ fontWeight: 600 }}>{agentName(p.agent)}</div><div className="muted small">{s.games.find(g => g.id === p.game_id)?.name ?? "No game"} · {ago(p.created_at)} ago</div></div></div>
             <div>
               <div style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3, marginBottom: 8 }}>{p.title}</div>
               <div className="muted" style={{ whiteSpace: "pre-wrap" }}>{p.note}</div>
             </div>
             {p.verdict === "waiting" ? (
               <>
-                <label className="field"><span>Note for {AGENT[p.agent].name} (needed to ask for changes)</span>
+                <label className="field"><span>Note for {agentName(p.agent)} (needed to ask for changes)</span>
                   <textarea id="note" className="textarea" value={note} onChange={e => setNote(e.target.value)} placeholder="What would make it right?" />
                 </label>
                 <div className="col" style={{ marginTop: "auto" }}>
                   <button className="btn lg pri" onClick={() => verdict("approved")}><Icon name="check" />Approve<kbd>A</kbd></button>
                   <button className="btn lg" disabled={!note.trim()} onClick={() => verdict("changes")}><Icon name="msg" />Ask for changes<kbd>C</kbd></button>
                   <button className="btn lg danger" onClick={() => verdict("rejected")}><Icon name="x" />Reject<kbd>R</kbd></button>
-                  <div className="dim small">Approve tells {AGENT[p.agent].name} to use it. Changes goes back with your note. Reject is just a no.</div>
+                  <div className="dim small">Approve tells {agentName(p.agent)} to use it. Changes goes back with your note. Reject is just a no.</div>
                 </div>
               </>
             ) : (

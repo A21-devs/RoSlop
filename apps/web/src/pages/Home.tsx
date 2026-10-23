@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { AGENT, ago, pct, projected, type Task } from "@roslop/core";
 import { answer, askLead } from "../data/actions";
 import { useData, useGameFilter, useSnap, useUsage } from "../data/store";
-import { Av, Icon, Media, Spark } from "../ui/bits";
+import { Av, Icon, Media, Spark, agentName } from "../ui/bits";
 
 function greeting() {
   const h = new Date().getHours();
@@ -17,14 +17,14 @@ function AskCard({ t }: { t: Task }) {
     <div className="card pad">
       <div className="row" style={{ marginBottom: 6 }}>
         <Av who={t.agent} size="sm" />
-        <span style={{ fontWeight: 500 }}>{AGENT[t.agent].name}</span>
+        <span style={{ fontWeight: 500 }}>{agentName(t.agent)}</span>
         {game && <span className="muted">· {game.name}</span>}
         <span className="dim mono" style={{ marginLeft: "auto" }}>{ago(t.created_at)}</span>
       </div>
       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{t.title}</div>
       <div className="muted" style={{ marginBottom: 12, whiteSpace: "pre-wrap" }}>{t.ask?.question}</div>
       <div className="row wrap" style={{ gap: 6 }}>
-        {t.ask?.options.map((o, i) => (
+        {(t.ask?.options ?? []).map((o, i) => (
           <button key={o} className={`btn sm ${i === 0 ? "pri" : ""}`} onClick={() => answer(t, o)}>{o}</button>
         ))}
         <Link className="btn sm ghost" to={`/tasks?open=${t.id}`}>Details</Link>
@@ -94,7 +94,7 @@ export function Home() {
             {proofs.slice(0, 3).map(p => (
               <Link key={p.id} to={`/review/${p.id}`} className="card pad row" style={{ gap: 14, alignItems: "flex-start" }}>
                 <div className="grow">
-                  <div className="row" style={{ marginBottom: 6 }}><Av who={p.agent} size="sm" /><span style={{ fontWeight: 500 }}>{AGENT[p.agent].name}</span><span className="muted">· wants your eyes</span></div>
+                  <div className="row" style={{ marginBottom: 6 }}><Av who={p.agent} size="sm" /><span style={{ fontWeight: 500 }}>{agentName(p.agent)}</span><span className="muted">· wants your eyes</span></div>
                   <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{p.title}</div>
                   <div className="muted small">{p.note}</div>
                 </div>

@@ -68,7 +68,10 @@ interface Ctx {
 const DataCtx = createContext<Ctx>({ user: undefined, snap: null, problem: null, retry() {}, game: "all", setGame() {} });
 
 function apply(s: Snapshot, c: Change): Snapshot {
-  if (c.table === "settings") return { ...s, settings: { ...s.settings, ...c.row } };
+  if (c.table === "settings") {
+    const row = c.row as Partial<Snapshot["settings"]>;
+    return { ...s, settings: { ...s.settings, ...row, blender: { ...s.settings.blender, ...row.blender }, savings: { ...s.settings.savings, ...row.savings } } };
+  }
   const rows = s[c.table as TableName] as { id: string }[];
   if (c.gone) return { ...s, [c.table]: rows.filter(r => r.id !== c.row.id) };
   const i = rows.findIndex(r => r.id === c.row.id);

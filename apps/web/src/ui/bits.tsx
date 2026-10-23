@@ -53,10 +53,11 @@ export function Logo({ size = 30 }: { size?: number }) {
 export function Av({ who, size = "" }: { who: Who; size?: "" | "sm" | "lg" }) {
   if (who === "you") return <span className={`pfp`} style={{ width: size === "sm" ? 18 : 22, height: size === "sm" ? 18 : 22, fontSize: 9 }}>you</span>;
   const a = AGENT[who];
+  if (!a) return <span className={`av ${size}`} style={{ "--c": "#9a998f" } as React.CSSProperties}>?</span>;
   return <span className={`av ${size}`} style={{ "--c": a.color } as React.CSSProperties} title={a.name}>{a.short}</span>;
 }
 
-export const agentName = (w: Who) => (w === "you" ? "You" : AGENT[w as AgentId].name);
+export const agentName = (w: Who | string) => (w === "you" ? "You" : AGENT[w as AgentId]?.name ?? String(w));
 
 export function Media({ src, kind = "image", tag, style, className = "" }: { src: string; kind?: "image" | "video"; tag?: string; style?: React.CSSProperties; className?: string }) {
   const [url, setUrl] = useState("");

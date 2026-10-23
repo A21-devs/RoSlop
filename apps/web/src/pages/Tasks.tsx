@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { AGENT, ago, pct, type Task, type TaskStatus } from "@roslop/core";
 import { answer, bump, drop, pause, resume } from "../data/actions";
 import { useGameFilter, useSnap } from "../data/store";
-import { Av, Icon, Seg } from "../ui/bits";
+import { Av, Icon, Seg, agentName } from "../ui/bits";
 
 type Filter = "all" | "working" | "queued" | "you" | "done";
 
@@ -21,7 +21,7 @@ function Status({ t, s }: { t: Task; s: ReturnType<typeof useSnap> }) {
   if (t.status === "held") return <span className="pill info" title="Waiting for room in your usage window">Held for usage</span>;
   if (t.status === "queued") {
     const parent = t.parent_id && s.tasks.find(p => p.id === t.parent_id && p.status !== "done");
-    return <span className="pill">{parent ? `after ${AGENT[parent.agent].name}` : "Queued"}</span>;
+    return <span className="pill">{parent ? `after ${agentName(parent.agent)}` : "Queued"}</span>;
   }
   if (t.status === "failed") return <span className="pill bad">Failed</span>;
   return <span className="pill">{t.status === "done" ? "Done" : "Dropped"}</span>;
@@ -37,7 +37,7 @@ function Detail({ t }: { t: Task }) {
         {t.ask && t.status === "needs_you" && (
           <div className="card flat pad" style={{ marginBottom: 12, background: "var(--raise)" }}>
             <div style={{ marginBottom: 10, whiteSpace: "pre-wrap" }}>{t.ask.question}</div>
-            <div className="row wrap">{t.ask.options.map((o, i) => <button key={o} className={`btn sm ${i ? "" : "pri"}`} onClick={() => answer(t, o)}>{o}</button>)}</div>
+            <div className="row wrap">{(t.ask.options ?? []).map((o, i) => <button key={o} className={`btn sm ${i ? "" : "pri"}`} onClick={() => answer(t, o)}>{o}</button>)}</div>
           </div>
         )}
         {events.map(e => (
@@ -106,7 +106,7 @@ export function Tasks() {
                     <Av who={t.agent} />
                     <div className="grow">
                       <div className="trunc" style={{ fontWeight: 500 }}>{t.title}</div>
-                      <div className="muted small trunc">{AGENT[t.agent].name} · from {t.requested_by === "you" ? "you" : AGENT[t.requested_by].name}{t.game_id ? ` · ${s.games.find(x => x.id === t.game_id)?.name ?? ""}` : ""}</div>
+                      <div className="muted small trunc">{agentName(t.agent)} · from {t.requested_by === "you" ? "you" : agentName(t.requested_by)}{t.game_id ? ` · ${s.games.find(x => x.id === t.game_id)?.name ?? ""}` : ""}</div>
                     </div>
                     <span className="mono dim hide-m">{ago(t.started_at ?? t.created_at)}</span>
                     <Status t={t} s={s} />
