@@ -50,7 +50,7 @@ const ic = (n, s = "") => `<svg class="i" viewBox="0 0 24 24" style="${s}"><path
 const play = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg>`;
 
 const AG = {
-  lead: ["Lead", "LD", "#d6ff3d"],
+  lead: ["Lead", "LD", "#3d7eff"],
   pulse: ["Pulse", "PU", "#ff7a6b"],
   architect: ["Architect", "AR", "#79b8ff"],
   builder: ["Builder", "BU", "#f4b24c"],
@@ -69,8 +69,8 @@ const AG = {
 const av = (k, cls = "") => `<span class="av ${cls}" style="--c:${AG[k][2]}">${AG[k][1]}</span>`;
 
 const logo = (s = 30) => `<svg class="logo" width="${s}" height="${s}" viewBox="0 0 32 32">
-  <path d="M6 3h20a3 3 0 0 1 3 3v14c0 2-1.4 2.6-2.4 2.6-1.3 0-2-.9-2-2.3v-1.6c0-.7-.5-1.1-1-1.1s-1 .4-1 1.1v7.6c0 1.6-1.1 2.7-2.6 2.7s-2.6-1.1-2.6-2.7v-4.1c0-.7-.5-1.1-1-1.1s-1 .4-1 1.1v.6c0 1.3-.9 2.2-2.1 2.2S6.2 24.1 6.2 23V22H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z" fill="#d6ff3d"/>
-  <path d="M10.5 8.5h6.2c2.4 0 4 1.4 4 3.5 0 1.6-.9 2.7-2.4 3.2l2.7 3.8h-3.1l-2.4-3.5h-2.3v3.5h-2.7z m2.7 2.2v2.6h3.3c.9 0 1.5-.5 1.5-1.3s-.6-1.3-1.5-1.3z" fill="#12140a"/>
+  <path d="M6 3h20a3 3 0 0 1 3 3v14c0 2-1.4 2.6-2.4 2.6-1.3 0-2-.9-2-2.3v-1.6c0-.7-.5-1.1-1-1.1s-1 .4-1 1.1v7.6c0 1.6-1.1 2.7-2.6 2.7s-2.6-1.1-2.6-2.7v-4.1c0-.7-.5-1.1-1-1.1s-1 .4-1 1.1v.6c0 1.3-.9 2.2-2.1 2.2S6.2 24.1 6.2 23V22H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z" fill="#3d7eff"/>
+  <path d="M10.5 8.5h6.2c2.4 0 4 1.4 4 3.5 0 1.6-.9 2.7-2.4 3.2l2.7 3.8h-3.1l-2.4-3.5h-2.3v3.5h-2.7z m2.7 2.2v2.6h3.3c.9 0 1.5-.5 1.5-1.3s-.6-1.3-1.5-1.3z" fill="#ffffff"/>
 </svg>`;
 
 // tiny seeded rng so the fake game frames look the same every render
@@ -251,7 +251,7 @@ function home() {
   </div>
 
   <div class="card" style="padding:12px 12px 10px 16px;margin-bottom:24px;border-color:var(--line-2)">
-    <div class="row" style="gap:12px"><span class="av lg" style="--c:#d6ff3d">${ic("lead", "width:15px;height:15px")}</span>
+    <div class="row" style="gap:12px"><span class="av lg" style="--c:#3d7eff">${ic("lead", "width:15px;height:15px")}</span>
       <div class="grow" style="font-size:14px;color:var(--dim)">Tell the Lead what you want. "Make the first 5 minutes of Dino less boring" works fine.</div></div>
     <div class="row" style="margin-top:10px;padding-left:42px">
       <span class="pill">${ic("games", "width:12px;height:12px")}Anime Awakening RNG ${ic("down", "width:12px;height:12px")}</span>

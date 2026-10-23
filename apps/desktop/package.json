@@ -16,8 +16,10 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
-    "electron": "^45.0.0",
+    "electron": "45.0.0",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2"
-  }
+  },
+  "author": "RoSlop contributors",
+  "homepage": "https://github.com/21kingbigz/RoSlop"
 }

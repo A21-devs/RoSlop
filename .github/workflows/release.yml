@@ -1,0 +1,64 @@
+name: Installers
+
+on:
+  push:
+    tags: ["v*"]
+    branches: [main, claude/roblox-ai-agent-app-v3ui2g]
+    paths: ["apps/**", "packages/**", ".github/workflows/release.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --publish never
+        working-directory: apps/desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.dmg
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: echo "tag=v$(node -p "require('./apps/desktop/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.v.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: RoSlop ${{ steps.v.outputs.tag }}
+          files: out/*
+          overwrite_files: true
+          draft: false
+          body: |
+            Download the one for your computer:
+
+            - **Windows**: the `.exe`. Windows may say it protected your PC because the app isn't signed yet. Click "More info", then "Run anyway".
+            - **Mac with Apple chip (M1 and newer)**: the `arm64.dmg`
+            - **Older Intel Mac**: the `x64.dmg`
+
+            On a Mac, the first time you open it, right-click the app and choose Open. The app isn't notarized by Apple yet.

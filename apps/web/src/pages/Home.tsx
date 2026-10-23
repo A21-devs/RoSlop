@@ -67,7 +67,7 @@ export function Home() {
 
       <div className="card pad" style={{ marginBottom: 24, borderColor: "var(--line-2)" }}>
         <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
-          <span className="av lg" style={{ "--c": "#d6ff3d" } as React.CSSProperties}><Icon name="lead" size={15} /></span>
+          <span className="av lg" style={{ "--c": "#3d7eff" } as React.CSSProperties}><Icon name="lead" size={15} /></span>
           <textarea
             className="grow"
             rows={2}

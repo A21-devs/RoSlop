@@ -46,44 +46,44 @@ The details are in [docs/usage-pacing.md](docs/usage-pacing.md).
 
 Only the desktop app runs agents. Everything else is a remote that reads and writes the same data, so whatever you do on one device shows up on the others straight away.
 
-## Try it
+## Install
+
+Grab the installer for your computer from the [latest release](https://github.com/21kingbigz/RoSlop/releases/latest):
+
+- **Windows**: `RoSlop-…-win-x64.exe`
+- **Mac with an Apple chip**: `RoSlop-…-mac-arm64.dmg`
+- **Older Intel Mac**: `RoSlop-…-mac-x64.dmg`
+
+The app isn't signed yet, so the first launch needs one extra click. On Windows, click "More info" then "Run anyway". On a Mac, right-click the app and choose Open.
+
+When it opens you can try the demo straight away, or connect your own Supabase project to sync across devices and run the crew for real.
+
+## Set it up for real
+
+**1. A free Supabase project.** This is where your account and data live, so your phone, browser and PC all see the same thing.
+
+- Make a project at supabase.com.
+- Open the SQL editor and run the files in `supabase/migrations`, in order.
+- Optional: turn on GitHub or Google under Authentication, Providers.
+- In the app, paste the project URL and anon key (Project Settings, API) and hit Connect.
+
+**2. Claude Code or Codex** on the computer that does the work. Install one and sign in once. RoSlop uses your plan, nothing goes through anyone else.
+
+**3. Sign in on that computer.** It becomes your worker. Add your games under Games, point Settings at the Roblox Studio MCP server so agents can drive Studio, and scan for apps like Blender.
+
+**4. Your phone** (optional). Host `apps/web` anywhere static, like Vercel or Netlify, and sign in from your phone. It works as a remote for your PC.
+
+## Working on RoSlop itself
 
 You need Node 20 or newer.
 
 ```
 npm install
-npm run dev
+npm run dev            # the web app with demo data, at localhost:5173
+npm run dev:desktop    # the desktop app, in a second terminal
 ```
 
-Open http://localhost:5173 and hit "Try the demo". With no database set up it runs on sample data kept in your browser.
-
-## Set it up for real
-
-**1. A Supabase project** (free tier is fine)
-
-- Make a project at supabase.com.
-- Run the files in `supabase/migrations` in order, in the SQL editor or with `supabase db push`.
-- Optional: turn on GitHub or Google under Authentication → Providers for one-click sign in.
-- Copy `apps/web/.env.example` to `apps/web/.env` and fill in the project URL and anon key.
-
-**2. Claude Code or Codex** on the computer that'll do the work
-
-Install one and sign in once (`claude` or `codex login`). RoSlop uses your plan, nothing goes through anyone else.
-
-**3. The desktop app**
-
-```
-npm run build                         # web + desktop
-npm run dist -w @roslop/desktop       # makes the installer in apps/desktop/release
-```
-
-While working on it, run `npm run dev` in one terminal and `npm run dev:desktop` in another.
-
-Open it, sign in, and that computer becomes your worker. Add your games under Games, point Settings at the Roblox Studio MCP server if you want agents driving Studio, and scan for apps like Blender.
-
-**4. The website** (optional)
-
-`apps/web/dist` is a static site. Put it on Vercel, Netlify or Cloudflare Pages with the same two env vars, then sign in from your phone.
+Installers are built by GitHub Actions on real Windows and Mac machines whenever a `v*` tag is pushed. See `.github/workflows/release.yml`.
 
 ## A word on safety
 

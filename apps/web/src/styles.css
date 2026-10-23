@@ -12,13 +12,13 @@
   --text: #ecebe4;
   --muted: #9a998f;
   --dim: #64635c;
-  --accent: #d6ff3d;
-  --accent-ink: #12140a;
-  --accent-text: #d6ff3d;
+  --accent: #3d7eff;
+  --accent-ink: #ffffff;
+  --accent-text: #6fa3ff;
   --ok: #62d394;
   --warn: #f3b74f;
   --bad: #ff6a55;
-  --info: #7fb6ff;
+  --info: #5fd4e8;
   --shadow: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 12px 32px -12px rgba(0, 0, 0, .6);
   --r: 10px;
   --sans: "Geist", ui-sans-serif, system-ui, sans-serif;
@@ -37,11 +37,11 @@
   --text: #191915;
   --muted: #67665e;
   --dim: #9b998f;
-  --accent-text: #4b6a00;
+  --accent-text: #1f5fd6;
   --ok: #1f9a57;
   --warn: #b7780c;
   --bad: #d6402b;
-  --info: #2d6fd6;
+  --info: #0e8fa6;
   --shadow: 0 1px 2px rgba(30, 25, 10, .05), 0 8px 24px -14px rgba(30, 25, 10, .18);
   color-scheme: light;
 }
