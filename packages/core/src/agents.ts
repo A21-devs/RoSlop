@@ -11,7 +11,7 @@ export interface Agent {
 }
 
 export const AGENTS: Agent[] = [
-  { id: "lead", name: "Lead", short: "LD", color: "#d6ff3d", tier: "heavy", job: "Turns what you want into tasks for the right people.", studio: false },
+  { id: "lead", name: "Lead", short: "LD", color: "#3d7eff", tier: "heavy", job: "Turns what you want into tasks for the right people.", studio: false },
   { id: "pulse", name: "Pulse", short: "PU", color: "#ff7a6b", tier: "light", job: "Watches the charts and pitches games that are growing.", studio: false },
   { id: "architect", name: "Architect", short: "AR", color: "#79b8ff", tier: "heavy", job: "Writes the game plan before anything gets built.", studio: false },
   { id: "builder", name: "Builder", short: "BU", color: "#f4b24c", tier: "standard", job: "Writes the code and wires the game together.", studio: true },

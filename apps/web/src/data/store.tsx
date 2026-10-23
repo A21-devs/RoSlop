@@ -4,9 +4,26 @@ import type { Change, Db, Snapshot, User } from "./db";
 import { demoDb } from "./demo";
 import { cloudDb } from "./supabase";
 
-const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-export const db: Db = url && key ? cloudDb(url, key) : demoDb();
+// Built-in config wins. Otherwise people paste their own project in on first run.
+function cloudConfig(): { url: string; key: string } | null {
+  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  if (url && key) return { url, key };
+  try {
+    return JSON.parse(localStorage.getItem("roslop-cloud") ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+export function connectCloud(url: string, key: string | null) {
+  if (key) localStorage.setItem("roslop-cloud", JSON.stringify({ url: url.trim().replace(/\/$/, ""), key: key.trim() }));
+  else localStorage.removeItem("roslop-cloud");
+  location.reload();
+}
+
+const cloud = cloudConfig();
+export const db: Db = cloud ? cloudDb(cloud.url, cloud.key) : demoDb();
 
 interface Ctx {
   user: User | null | undefined;

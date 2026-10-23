@@ -189,7 +189,7 @@ function pipeline() {
     <div class="seg"><a class="on">Board</a><a>List</a></div></div>
   <div style="display:grid;grid-template-columns:repeat(9,1fr);gap:10px;align-items:start">
     ${cols.map(([name, who, cards]) => `<div style="min-width:0">
-      <div class="row" style="gap:6px;margin-bottom:8px;padding:0 2px">${who ? av(who, "sm") : `<span class="av sm" style="--c:#d6ff3d">${ic("user", "width:11px;height:11px")}</span>`}<b style="font-size:12px;font-weight:600" class="trunc">${name}</b><span class="mono dim" style="margin-left:auto">${cards.length}</span></div>
+      <div class="row" style="gap:6px;margin-bottom:8px;padding:0 2px">${who ? av(who, "sm") : `<span class="av sm" style="--c:#3d7eff">${ic("user", "width:11px;height:11px")}</span>`}<b style="font-size:12px;font-weight:600" class="trunc">${name}</b><span class="mono dim" style="margin-left:auto">${cards.length}</span></div>
       <div style="display:flex;flex-direction:column;gap:8px;min-height:420px;padding:6px;border-radius:10px;background:color-mix(in srgb,var(--panel) 50%,transparent);border:1px dashed var(--line)">
         ${cards.map(card).join("")}
         ${name === "Live" ? `<div class="dim" style="font-size:11px;text-align:center;padding:6px">Only you can move things here</div>` : ""}
