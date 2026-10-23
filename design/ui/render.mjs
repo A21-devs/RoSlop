@@ -6,9 +6,18 @@ import path from "node:path";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(here, "out");
 mkdirSync(out, { recursive: true });
-
-const shots = process.argv.slice(2).length ? process.argv.slice(2) : ["pc-site", "mac-site", "mac-app", "windows-app", "mobile-site", "mac-app-market", "windows-app-settings", "windows-app-apps", "pc-site-playtest", "mac-app-team", "windows-app-prompt", "mac-app-vault", "pc-site-pipeline", "windows-app-library", "mac-site-pitch"];
 const browser = await chromium.launch();
+
+async function page0() {
+  const p = await browser.newPage();
+  await p.goto(`file://${here}/shot.html?s=pc-site-desk`);
+  const keys = await p.evaluate(() => Object.keys(SHOTS));
+  await p.close();
+  return keys;
+}
+
+const shots = process.argv.slice(2).length ? process.argv.slice(2) : await page0();
+
 
 for (const s of shots) {
   const page = await browser.newPage({ deviceScaleFactor: 1.5, viewport: { width: 1800, height: 1200 } });
