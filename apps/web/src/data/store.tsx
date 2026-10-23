@@ -22,7 +22,7 @@ export function connectCloud(url: string, key: string | null) {
   location.reload();
 }
 
-const cloud = cloudConfig();
+export const cloud = cloudConfig();
 export const db: Db = cloud ? cloudDb(cloud.url, cloud.key) : demoDb();
 
 // Small notices at the bottom of the screen. Errors land here instead of vanishing.

@@ -12,6 +12,7 @@ import { More } from "./pages/More";
 import { Pitches } from "./pages/Pitches";
 import { Review } from "./pages/Review";
 import { Settings } from "./pages/Settings";
+import { needsSetup, Setup } from "./pages/Setup";
 import { Tasks } from "./pages/Tasks";
 import { Team } from "./pages/Team";
 import { Vault } from "./pages/Vault";
@@ -53,6 +54,7 @@ function useCheckIn() {
 export function App() {
   const { user, snap, problem, retry } = useData();
   useCheckIn();
+  if (user && problem && needsSetup(problem)) return <Setup retry={retry} />;
   if (user && problem) {
     return (
       <div className="login">
