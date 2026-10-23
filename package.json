@@ -1,0 +1,22 @@
+{
+  "name": "roslop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A crew of AI agents that builds Roblox games on your own Claude Code or Codex account.",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @roslop/web",
+    "dev:desktop": "npm run dev -w @roslop/desktop",
+    "build": "npm run build -w @roslop/web && npm run build -w @roslop/desktop",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^3.2.7"
+  }
+}

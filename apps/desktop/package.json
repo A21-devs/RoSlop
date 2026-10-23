@@ -1,0 +1,23 @@
+{
+  "name": "@roslop/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RoSlop for Mac and Windows. Runs the crew on your own computer.",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --dev && electron .",
+    "typecheck": "tsc -p .",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@roslop/core": "*",
+    "@supabase/supabase-js": "^2.118.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2"
+  }
+}
