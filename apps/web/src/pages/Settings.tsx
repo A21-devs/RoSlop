@@ -121,6 +121,12 @@ function ThisComputer() {
     } else toast("Sign in with your Supabase project first. The demo can't run the crew.", true);
     setBusy(false);
   };
+  const pick = async () => {
+    const path = await window.roslop!.pickFile();
+    if (!path || !st) return;
+    await window.roslop!.setCliPath(st.provider, path);
+    recheck();
+  };
   const line = (label: string, value: React.ReactNode, ok?: boolean) => (
     <div className="row" style={{ padding: "7px 0", alignItems: "flex-start" }}>
       <span className="muted" style={{ width: 130, flex: "none" }}>{label}</span>
@@ -129,13 +135,22 @@ function ThisComputer() {
   );
   return (
     <div className="card pad" style={{ marginTop: 18 }}>
-      <div className="sec-h"><h3>This computer</h3><button className="btn sm r" disabled={busy} onClick={recheck}>{busy ? "Checking…" : "Check again"}</button></div>
+      <div className="sec-h"><h3>This computer</h3><button className="btn sm r" disabled={!st} onClick={pick}>Point at the file</button><button className="btn sm" disabled={busy} onClick={recheck}>{busy ? "Checking…" : "Check again"}</button></div>
       {!st ? <div className="muted">Asking the desktop app…</div> : (
         <div className="list">
           {line("Crew", db.mode === "demo" ? "Not running, this is the demo" : st.running ? "Running" : "Stopped", db.mode !== "demo" && st.running)}
           {line(st.provider === "claude" ? "Claude Code" : "Codex", st.cli_detail ?? (st.cli_found ? "Found" : "Not checked yet"), st.cli_found)}
           {line("Working on", st.working.length ? st.working.join(", ") : "Nothing right now")}
           {st.note && line("Why it's waiting", st.note)}
+          {!st.cli_found && st.provider === "claude" && (
+            <div className="small muted" style={{ padding: "10px 0", lineHeight: 1.6 }}>
+              The Claude desktop app isn't the same as Claude Code's command line, and RoSlop needs the command line.
+              {window.roslop!.platform === "windows"
+                ? <> Open PowerShell, run <code>irm https://claude.ai/install.ps1 | iex</code>, close it, open a new one and run <code>claude</code> once to sign in with the same account. </>
+                : <> Open Terminal, run <code>curl -fsSL https://claude.ai/install.sh | bash</code>, then run <code>claude</code> once to sign in. </>}
+              Then hit Check again. If you already have it somewhere odd, point at the file instead.
+            </div>
+          )}
           {st.last_error && line("Last problem", st.last_error, false)}
         </div>
       )}

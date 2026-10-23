@@ -1,8 +1,9 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import type { Provider } from "@roslop/core";
+import { jsonStore } from "./store";
 
 const win = process.platform === "win32";
 
@@ -40,11 +41,52 @@ interface Command {
   env: Record<string, string>;
 }
 
+// A file someone pointed us at by hand, for when it isn't on PATH.
+export const cliPaths = jsonStore<string>("cli.json");
+
+// The Claude desktop app keeps its own copy of Claude Code in versioned folders, off PATH.
+// Only look in folders named claude-code so we never launch the desktop app itself.
+function bundled(name: Provider): string | null {
+  if (name !== "claude") return null;
+  const file = win ? "claude.exe" : "claude";
+  const roots = win
+    ? [join(process.env.APPDATA ?? "", "Claude", "claude-code"), join(process.env.LOCALAPPDATA ?? "", "Claude", "claude-code"), join(process.env.LOCALAPPDATA ?? "", "Programs", "claude-code")]
+    : [join(homedir(), "Library/Application Support/Claude/claude-code"), join(homedir(), ".config/Claude/claude-code")];
+  const found: { path: string; at: number }[] = [];
+  const walk = (dir: string, depth: number) => {
+    let names: string[];
+    try {
+      names = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const n of names) {
+      const p = join(dir, n);
+      try {
+        const st = statSync(p);
+        if (st.isDirectory() && depth > 0) walk(p, depth - 1);
+        else if (st.isFile() && n.toLowerCase() === file) found.push({ path: p, at: st.mtimeMs });
+      } catch {}
+    }
+  };
+  roots.forEach(r => walk(r, 3));
+  const local = join(homedir(), ".claude", "local", win ? "claude.cmd" : "claude");
+  if (existsSync(local)) found.push({ path: local, at: 0 });
+  return found.sort((a, b) => b.at - a.at)[0]?.path ?? null;
+}
+
+function locate(name: Provider): string | null {
+  const own = cliPaths.get(name);
+  if (own && existsSync(own)) return own;
+  return which(name) ?? bundled(name);
+}
+
 // npm installs .cmd shims on Windows, which can't be spawned without a shell, and a shell
 // mangles long multi-line prompts. So read the shim and run its script with Electron's own node.
 function resolveCommand(name: Provider): Command | null {
-  const found = which(name);
+  const found = locate(name);
   if (!found) return null;
+  if (found.toLowerCase().endsWith(".js")) return { file: process.execPath, prefix: [found], env: { ELECTRON_RUN_AS_NODE: "1" } };
   if (win && found.toLowerCase().endsWith(".cmd")) {
     const shim = readFileSync(found, "utf8");
     const script = shim.match(/"%~?dp0%?\\([^"]+\.js)"/i)?.[1];
@@ -78,8 +120,8 @@ export function cliFound(name: Provider): Promise<CliCheck> {
     try {
       const cmd = resolveCommand(name);
       if (!cmd) {
-        const shim = which(name);
-        return done({ ok: false, detail: shim ? `Found ${shim} but couldn't work out how to start it.` : `Couldn't find "${name}" on this computer's PATH.` });
+        const shim = locate(name);
+        return done({ ok: false, detail: shim ? `Found ${shim} but couldn't work out how to start it.` : `Couldn't find "${name}" on PATH or inside the Claude app.` });
       }
       where = [cmd.file, ...cmd.prefix].join(" ");
       const child = run(name, ["--version"], { cwd: homedir() });

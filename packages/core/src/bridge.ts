@@ -28,6 +28,8 @@ export interface DesktopBridge {
   setKey(id: string, value: string | null): Promise<void>;
   pickFolder(): Promise<string | null>;
   pickFile(): Promise<string | null>;
+  // Point at the CLI by hand when it isn't on PATH. null goes back to looking for it.
+  setCliPath(provider: Provider, path: string | null): Promise<void>;
   scanApps(): Promise<AppEntry[]>;
   openPath(path: string): Promise<void>;
 }

@@ -20,6 +20,7 @@ const bridge: DesktopBridge = {
   setKey: (id, value) => ipcRenderer.invoke("roslop:setKey", id, value),
   pickFolder: () => ipcRenderer.invoke("roslop:pickFolder"),
   pickFile: () => ipcRenderer.invoke("roslop:pickFile"),
+  setCliPath: (provider, path) => ipcRenderer.invoke("roslop:setCliPath", provider, path),
   scanApps: () => ipcRenderer.invoke("roslop:scanApps"),
   openPath: path => ipcRenderer.invoke("roslop:openPath", path),
 };

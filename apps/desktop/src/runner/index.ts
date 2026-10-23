@@ -234,7 +234,11 @@ export class Runner {
       await this.checkCli(live.settings.provider);
     }
     if (!this.cli) {
-      const install = live.settings.provider === "claude" ? "npm install -g @anthropic-ai/claude-code, then run claude once to sign in" : "npm install -g @openai/codex, then run codex login";
+      const install = live.settings.provider === "codex"
+        ? "npm install -g @openai/codex, then run codex login"
+        : process.platform === "win32"
+          ? "open PowerShell and run irm https://claude.ai/install.ps1 | iex, then run claude once to sign in"
+          : "curl -fsSL https://claude.ai/install.sh | bash, then run claude once to sign in";
       return this.say(`${name} isn't working on this computer (${this.cliDetail ?? "not checked"}). If it's not installed, in a terminal: ${install}. Then hit Check again.`);
     }
 
