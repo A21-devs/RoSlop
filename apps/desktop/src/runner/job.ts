@@ -122,7 +122,7 @@ export class Job {
       this.finalText = ev.text;
       this.failedResult = ev.error;
     } else if (ev.kind === "limit") {
-      void usage.raise(ev.used).catch(() => {});
+      void usage.raise(ev.used, ev.resets).catch(() => {});
     } else if (this.stopped) {
       return;
     } else if (ev.kind === "tool") {
