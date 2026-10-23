@@ -19,6 +19,7 @@ export interface Db {
   signIn(email: string, password: string): Promise<string | null>;
   signUp(email: string, password: string): Promise<string | null>;
   signInWith(provider: "github" | "google"): Promise<string | null>;
+  providers(): Promise<("github" | "google")[]>;
   signOut(): Promise<void>;
   load(): Promise<Snapshot>;
   subscribe(cb: (c: Change) => void): () => void;

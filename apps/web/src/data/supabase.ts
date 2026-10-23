@@ -35,6 +35,16 @@ export function cloudDb(url: string, anonKey: string): Db {
     async signUp(email, password) {
       return fail((await sb.auth.signUp({ email, password })).error);
     },
+    // Only offer the buttons the project has actually switched on.
+    async providers() {
+      try {
+        const r = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: anonKey } });
+        const ext = (await r.json()).external ?? {};
+        return (["github", "google"] as const).filter(p => ext[p]);
+      } catch {
+        return [];
+      }
+    },
     async signInWith(provider) {
       return fail((await sb.auth.signInWithOAuth({ provider, options: { redirectTo: location.href.split("#")[0] } })).error);
     },
