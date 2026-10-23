@@ -513,15 +513,15 @@ function market() {
 }
 
 /* ---------- Settings ---------- */
-function settings() {
-  const sub = ["Account and sync", "AI provider", "Keys", "Connectors", "Roblox Studio", "Notifications", "Look and feel"];
+function settings(o = {}) {
+  const sub = ["Account and sync", "Computers and apps", "AI provider", "Keys", "Connectors", "Roblox Studio", "Notifications", "Look and feel"];
   const tog = on => `<span style="width:34px;height:20px;border-radius:99px;background:${on ? "var(--accent)" : "var(--line-2)"};position:relative;flex:none;display:inline-block"><i style="position:absolute;top:2px;${on ? "right:2px" : "left:2px"};width:16px;height:16px;border-radius:99px;background:${on ? "var(--accent-ink)" : "var(--muted)"}"></i></span>`;
   const conn = (name, logoBg, letter, where, on, note) => `<div class="row" style="padding:12px 16px;gap:12px;border-top:1px solid var(--line)">
     <span style="width:30px;height:30px;border-radius:8px;background:${logoBg};display:grid;place-items:center;font-weight:700;color:#fff;font-size:13px;flex:none">${letter}</span>
     <div class="grow"><div style="font-weight:500">${name}</div><div class="muted" style="font-size:12px">${note}</div></div>
     <span class="pill ${where.startsWith("Not") ? "" : "ok"}">${where}</span>${tog(on)}</div>`;
   return `<div style="display:grid;grid-template-columns:200px 1fr;gap:32px;max-width:1180px">
-    <nav class="nav" style="padding-top:4px">${sub.map((s, i) => `<a class="${i === 3 ? "on" : ""}" style="height:32px">${s}</a>`).join("")}</nav>
+    <nav class="nav" style="padding-top:4px">${sub.map((s, i) => `<a class="${i === (o.on ?? 4) ? "on" : ""}" style="height:32px">${s}</a>`).join("")}</nav>
     <div style="display:flex;flex-direction:column;gap:20px">
       <div><h1 class="page">Settings</h1><p class="lede">Keys and connectors live here. Everything syncs to your account, so you only set it up once.</p></div>
 
@@ -544,7 +544,7 @@ function settings() {
         <div class="muted" style="font-size:12.5px;margin-top:2px">We look at what's already connected in Claude Code or Codex. Turn one on and the agents can use it. Nothing new gets installed.</div></div>
         ${conn("Figma", "#1e1e1e", "F", "Found in Claude Code", true, "Frame pulls frames and styles from your files when you link one in a task")}
         ${conn("GitHub", "#24292f", "G", "Found in Claude Code", true, "Builder pushes to inclined/anime-rng on a branch, never main")}
-        ${conn("Blender", "#e87d0d", "B", "Found in Claude Code", false, "Librarian can tweak and export models before they go to Studio")}
+        ${conn("Linear", "#5e6ad2", "L", "Found in Claude Code", false, "Producer files bugs from Reviewer and Playtest as Linear issues")}
         ${conn("Notion", "#2f2f2f", "N", "Not connected", false, "Connect it in Claude Code first, then hit Rescan")}
       </div>
 
@@ -566,6 +566,100 @@ function settings() {
   </div>`;
 }
 
+
+/* ---------- Settings: computers and apps ---------- */
+function settingsApps() {
+  const tog = on => `<span style="width:34px;height:20px;border-radius:99px;background:${on ? "var(--accent)" : "var(--line-2)"};position:relative;flex:none;display:inline-block"><i style="position:absolute;top:2px;${on ? "right:2px" : "left:2px"};width:16px;height:16px;border-radius:99px;background:${on ? "var(--accent-ink)" : "var(--muted)"}"></i></span>`;
+  const sub = ["Account and sync", "Computers and apps", "AI provider", "Keys", "Connectors", "Roblox Studio", "Notifications", "Look and feel"];
+  const comp = (icon, name, meta, role, roleCls, right, last) => `<div class="row" style="gap:14px;padding:14px 16px;${last ? "" : "border-bottom:1px solid var(--line)"}">
+    <span style="width:36px;height:36px;border-radius:9px;background:var(--raise);border:1px solid var(--line);display:grid;place-items:center;color:var(--muted)">${ic(icon)}</span>
+    <div class="grow"><div class="row" style="gap:8px"><b style="font-weight:600">${name}</b><span class="pill ${roleCls}" style="height:18px">${role}</span></div><div class="muted" style="font-size:12px;margin-top:2px">${meta}</div></div>${right}</div>`;
+  const app = (bg, letter, name, ver, path, who, on, how) => `<div class="row" style="gap:14px;padding:13px 16px;border-top:1px solid var(--line)">
+    <span style="width:34px;height:34px;border-radius:9px;background:${bg};display:grid;place-items:center;font-weight:700;color:#fff;font-size:14px;flex:none">${letter}</span>
+    <div style="width:260px"><div style="font-weight:500">${name} <span class="dim mono">${ver}</span></div><div class="mono dim trunc" style="font-size:10.5px;margin-top:2px">${path}</div></div>
+    <div class="grow muted" style="font-size:12px">${how}</div>
+    <div class="row" style="gap:3px;width:70px;justify-content:flex-end">${who.map(k => av(k, "sm")).join("")}</div>${tog(on)}</div>`;
+  return `<div style="display:grid;grid-template-columns:200px 1fr;gap:32px;max-width:1180px">
+    <nav class="nav" style="padding-top:4px">${sub.map((s, i) => `<a class="${i === 1 ? "on" : ""}" style="height:32px">${s}</a>`).join("")}</nav>
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <div><h1 class="page">Computers and apps</h1><p class="lede">Agents run on one computer. Everything else, your phone included, is a remote that sends it work and shows you what's happening.</p></div>
+
+      <div class="card" style="overflow:hidden">
+        <div style="padding:14px 16px 12px;border-bottom:1px solid var(--line)" class="sec-h"><h3>Your computers</h3><span class="r">Signed in on 3</span></div>
+        ${comp("studio", "Sam's PC", "Windows 11 · Claude Code (Max) · 4 Studio slots · up 3 days", "Runs the agents", "acc", `<span class="row muted" style="gap:6px;font-size:12px"><span class="dot pulse"></span>Online, 4 busy</span>`)}
+        ${comp("studio", "MacBook Air", "macOS 15 · Claude Code (Max) · 2 Studio slots", "Backup", "", `<span class="muted" style="font-size:12px;margin-right:6px">Take over if the PC goes offline</span>${tog(true)}`)}
+        ${comp("phone", "iPhone 15", "Remote only. Nothing runs on the phone, it just sends tasks to Sam's PC", "Remote", "info", `<span class="row muted" style="gap:6px;font-size:12px"><span class="dot"></span>Seen 2m ago</span>`, true)}
+      </div>
+      <div class="row" style="gap:10px;padding:12px 14px;border-radius:10px;border:1px dashed var(--line-2);color:var(--muted);font-size:12.5px">${ic("cloud")}If Sam's PC is off, new tasks wait in the queue and start the second it's back. You'll get a ping if something's been waiting over an hour.</div>
+
+      <div class="card" style="overflow:hidden">
+        <div style="padding:14px 16px 12px"><div class="sec-h" style="margin:0"><h3>Apps the agents can use on Sam's PC</h3><span class="r">Scanned 4 min ago</span></div>
+        <div class="muted" style="font-size:12.5px;margin-top:2px">They open these like you would, do the work, and drop the result in Library. Turn off anything you don't want them touching.</div></div>
+        ${app("#e87d0d", "B", "Blender", "4.2", "C:\\Program Files\\Blender Foundation\\Blender 4.2", ["librarian", "scenic"], true, "Clean up and retopo models, bake textures, export .fbx straight into Studio")}
+        ${app("#7b4fd6", "A", "Aseprite", "1.3", "C:\\Program Files\\Aseprite", ["splash", "frame"], true, "Pixel icons, UI sprites and small animations")}
+        ${app("#31a8ff", "Ps", "Photoshop", "2025", "C:\\Program Files\\Adobe\\Adobe Photoshop 2025", ["splash"], false, "Thumbnails and store art. Off until you say so")}
+        ${app("#0d3b66", "Au", "Audacity", "3.6", "C:\\Program Files\\Audacity", ["librarian"], true, "Trim, normalize and loop sounds before upload")}
+        <div class="row" style="padding:12px 16px;border-top:1px solid var(--line);gap:10px"><button class="btn sm">${ic("plus", "width:14px;height:14px")}Add an app</button><span class="muted" style="font-size:12px">Point it at any program and write one line about what it's for. The agents figure out the rest.</span></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------- Playtest ---------- */
+function playtest() {
+  const marks = [[8, "ok"], [21, "ok"], [34, "warn"], [47, "ok"], [58, "bad"], [71, "ok"], [86, "bad"]];
+  const steps = [
+    ["0:00", "Spawned, read the tutorial popup in 3s", "ok"],
+    ["0:41", "Found the shovel, first dig worked", "ok"],
+    ["1:52", "Couldn't tell which rocks are diggable. Tried 6 before one worked", "warn"],
+    ["3:05", "Filled the backpack, walked back to sell", "ok"],
+    ["3:58", "Sell button hidden behind the chat on phone. Gave up after 40s", "bad"],
+    ["5:10", "Bought shovel #2 on PC run, dig speed felt the same", "ok"],
+    ["6:22", "Swamp gate says 'Need 500 Fossils' but nothing says where to get them", "bad"],
+  ];
+  const col = c => c === "bad" ? "var(--bad)" : c === "warn" ? "var(--warn)" : "var(--ok)";
+  return `
+  <div class="row" style="align-items:flex-end;margin-bottom:18px">
+    <div class="grow"><div class="row" style="gap:10px"><h1 class="page">Playtest run #14</h1><span class="pill">Dig Up a Dino</span></div>
+    <p class="lede" style="margin-top:4px">Kid Tester and Playtest played it fresh on phone and PC. Two places people will quit.</p></div>
+    <button class="btn">${ic("reload", "width:14px;height:14px")}Run again</button><button class="btn pri">Send both fixes to Builder</button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:20px">
+    <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+      <div class="card" style="padding:10px;background:#0a0a09;border-color:#22231f">
+        <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:6px">
+          ${thumb("dino", 31, { tag: "PC · PLAYTEST", hud: "FOSSILS 212", guys: 2, k: "pt1" })}
+          ${thumb("dino", 33, { tag: "PHONE · KID TESTER", guys: 1, k: "pt2", ar: "auto", style: "height:100%" })}
+        </div>
+        <div style="padding:12px 4px 4px">
+          <div style="position:relative;height:6px;border-radius:99px;background:#2a2a26"><i style="position:absolute;left:0;top:0;bottom:0;width:58%;border-radius:99px;background:#ecebe4"></i>
+          ${marks.map(([x, c]) => `<span style="position:absolute;left:${x}%;top:-4px;width:4px;height:14px;border-radius:2px;background:${col(c)}"></span>`).join("")}</div>
+          <div class="row" style="margin-top:8px;color:#8d8c84">${play}<span class="mono">3:58 / 6:50</span><span class="grow"></span><span class="mono">markers = where it struggled</span></div>
+        </div>
+      </div>
+      <div class="card" style="padding:6px 16px">
+        ${steps.map(([t, txt, c], i) => `<div class="row" style="gap:12px;padding:9px 0;align-items:flex-start;${i ? "border-top:1px solid var(--line)" : ""}"><span class="mono dim" style="width:34px;padding-top:1px">${t}</span><span style="width:8px;height:8px;border-radius:99px;background:${col(c)};margin-top:5px;flex:none"></span><span class="grow ${c === "ok" ? "muted" : ""}">${txt}</span>${c === "bad" ? `<button class="btn sm">Fix this</button>` : ""}</div>`).join("")}
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card" style="padding:16px">
+        <div class="sec-h"><h3>How it read your game</h3></div>
+        ${[["Type", "Digging and collecting sim"], ["Goal it set", "Dig a full T-Rex, sell it, open the swamp"], ["Controls", "WASD, click to dig, E to sell, tap on phone"], ["Played as", "New player, phone + PC, 1 and 2 players"]].map(([k, v]) => `<div class="row" style="align-items:flex-start;gap:10px;padding:6px 0"><span class="muted" style="width:86px;flex:none;font-size:12px;padding-top:1px">${k}</span><span>${v}</span></div>`).join("")}
+        <div class="muted" style="font-size:12px;margin-top:8px;padding-top:10px;border-top:1px solid var(--line)">It reads your scripts and UI first, then plays. Obby, tycoon, RNG, shooter, horror, story, anything. If it can't work out the goal it asks you once and remembers.</div>
+      </div>
+      <div class="card" style="padding:16px">
+        <div class="sec-h"><h3>Next run</h3></div>
+        <div style="font-size:12px;font-weight:500;margin-bottom:6px">Devices</div>
+        <div class="row" style="gap:6px;margin-bottom:12px;flex-wrap:wrap"><span class="pill ok">${ic("phone", "width:12px;height:12px")}Phone</span><span class="pill ok">${ic("studio", "width:12px;height:12px")}PC</span><span class="pill">${ic("games", "width:12px;height:12px")}Controller</span><span class="pill">Tablet</span></div>
+        <div style="font-size:12px;font-weight:500;margin-bottom:6px">Players</div>
+        <div class="seg" style="margin-bottom:12px"><a>1</a><a class="on">2</a><a>4</a><a>8</a></div>
+        <div style="font-size:12px;font-weight:500;margin-bottom:6px">Tell it anything</div>
+        <div class="input" style="height:58px;align-items:flex-start;padding-top:8px;color:var(--dim)">e.g. skip the tutorial, go straight for the swamp</div>
+      </div>
+    </div>
+  </div>`;
+}
+
 /* ---------- Mobile ---------- */
 const sbar = `<div class="sb"><span>9:41</span><span class="ic"><svg width="18" height="11" viewBox="0 0 18 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="10" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg><svg width="26" height="12" viewBox="0 0 26 12"><rect x=".5" y=".5" width="22" height="11" rx="3" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="16" height="8" rx="1.6" fill="currentColor"/><rect x="24" y="4" width="1.6" height="4" rx=".8" fill="currentColor" opacity=".4"/></svg></span></div>`;
 const tabbar = on => `<div style="margin-top:auto;border-top:1px solid var(--line);background:color-mix(in srgb,var(--side) 92%,transparent);backdrop-filter:blur(10px);padding:8px 10px 26px;display:flex;justify-content:space-around">
@@ -576,9 +670,10 @@ const tabbar = on => `<div style="margin-top:auto;border-top:1px solid var(--lin
 const mHead = (title, right = "") => `<div class="row" style="padding:6px 18px 10px">${logo(26)}<b style="font-size:17px;font-weight:600;letter-spacing:-0.02em;margin-left:2px">${title}</b><div class="grow"></div>${right}</div>`;
 
 function mHome() {
-  return `${sbar}${mHead("Home", `<span class="slots" style="font-size:11px">S <i class="on"></i><i class="on"></i><i></i><i></i></span>`)}
+  return `${sbar}${mHead("Home", `<span class="pill ok" style="font-size:11px"><span class="dot"></span>Sam's PC</span>`)}
   <div style="padding:0 18px;overflow:hidden;display:flex;flex-direction:column;gap:16px">
     <div><h1 class="page" style="font-size:24px">Evening, Sam.</h1><div class="muted" style="margin-top:3px">4 need you · 4 working · 5 queued</div></div>
+    <div class="row" style="gap:10px;padding:10px 12px;border-radius:10px;background:var(--raise);border:1px solid var(--line);font-size:12px">${ic("studio", "color:var(--muted)")}<span class="grow muted">This phone is just the remote. Everything runs on <b style="color:var(--text);font-weight:500">Sam's PC</b>, 2 Studios open.</span></div>
     <div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:10px;color:var(--dim)">${ic("lead", "color:var(--accent-text)")}Tell the Lead what you want<span style="margin-left:auto">${ic("mic")}</span></div>
     <div>
       <div class="sec-h"><h3>Needs you</h3><span class="c">4</span></div>
@@ -619,17 +714,17 @@ function mReview() {
 function mLead() {
   const msg = (me, html) => `<div style="display:flex;${me ? "justify-content:flex-end" : "gap:8px"}">${me ? "" : av("lead", "sm")}<div style="max-width:84%;padding:10px 12px;border-radius:14px;${me ? "background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:4px" : "background:var(--panel);border:1px solid var(--line);border-top-left-radius:4px"};font-size:13.5px">${html}</div></div>`;
   const task = (k, t) => `<div class="row" style="gap:8px;padding:7px 0;border-top:1px solid var(--line)">${av(k, "sm")}<span class="grow" style="font-size:12.5px">${t}</span><span class="pill" style="height:18px;font-size:10px">queued</span></div>`;
-  return `${sbar}${mHead("Lead", `<span class="pill">Anime RNG ${ic("down", "width:11px;height:11px")}</span>`)}
+  return `${sbar}${mHead("Lead", `<span class="pill ok" style="font-size:11px"><span class="dot"></span>Sam's PC</span>`)}
   <div style="padding:4px 14px;display:flex;flex-direction:column;gap:12px;flex:1;overflow:hidden">
     <div class="mono dim" style="text-align:center">TODAY 6:12 PM</div>
     ${msg(true, "people are quitting at the ice bridge in frostpeak. fix it but don't make it baby mode")}
-    ${msg(false, `Makes sense. The bridge isn't the problem on its own, it's that Frozza is right after it and new players show up underleveled. Here's the plan:
+    ${msg(false, `Makes sense. It's less the bridge and more that Frozza is right after it and new players show up underleveled. Plan:
       <div style="margin-top:8px">${task("kid", "Play Frostpeak fresh, note every death")}${task("balance", "Find the level where Frozza feels fair")}${task("builder", "Add a checkpoint after the bridge")}${task("frame", "Warn people if they're under level 12")}</div>
       <div class="row" style="gap:6px;margin-top:8px"><button class="btn sm pri" style="flex:1;justify-content:center">Start all 4</button><button class="btn sm" style="flex:1;justify-content:center">Change it</button></div>`)}
-    ${msg(true, "start them. skip the warning popup, people hate popups")}
+    ${msg(true, "start them. skip the warning popup, people hate popups")}<div class="mono dim" style="text-align:right;margin-top:-6px">sent to Sam's PC</div>
     ${msg(false, "Done, dropped Frame's popup. Kid Tester is opening Studio 3 now. I'll ping you when there's a clip.")}
   </div>
-  <div style="padding:10px 14px 30px;border-top:1px solid var(--line)"><div class="row card" style="padding:8px 8px 8px 14px;border-radius:99px;gap:8px;color:var(--dim)">${ic("plus")}<span class="grow">Message the Lead</span><span style="width:30px;height:30px;border-radius:99px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center">${ic("up", "width:16px;height:16px")}</span></div></div>`;
+  <div style="padding:10px 14px 30px;border-top:1px solid var(--line)"><div class="row card" style="padding:8px 8px 8px 14px;border-radius:99px;gap:8px;color:var(--dim)">${ic("plus")}<span class="grow">Message the Lead</span><span class="mono" style="font-size:10px">runs on PC</span><span style="width:30px;height:30px;border-radius:99px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center">${ic("up", "width:16px;height:16px")}</span></div></div>`;
 }
 
 /* ---------- Frames ---------- */
@@ -655,6 +750,16 @@ const SHOTS = {
 
   "mac-app-market": { stage: "paper", w: 1560, h: 920, html: () => `<div class="window" style="width:1560px;height:920px">
     <div class="body">${shell("market", `<b>Market</b>`, market(), { mac: true, light: true })}</div></div>` },
+
+  "windows-app-apps": { stage: "win", w: 1560, h: 1000, html: () => `<div class="window win" style="width:1560px;height:1000px">
+    <div class="winbar">${logo(16)}<span class="ttl">RoSlop</span><div class="ctl">${winCtl}</div></div>
+    <div class="body">${shell("settings", `<b>Settings</b><span class="dim">·</span><span>Computers and apps</span>`, settingsApps(), { win: true })}</div></div>` },
+
+  "pc-site-playtest": { stage: "win", w: 1600, h: 1000, html: () => `<div class="window" style="width:1600px;height:1000px">
+    <div class="chrome"><div class="tabs"><div class="tab on">${logo(14)}<span>Playtest · RoSlop</span><span class="x">✕</span></div><span style="padding:0 10px 8px;color:#888">+</span>
+    <div class="ctl">${winCtl}</div></div>
+    <div class="bar2"><div class="navb">${ic("left")}${ic("right")}${ic("reload")}</div><div class="omni">${ic("lock", "width:13px;height:13px;color:#8a8a8f")}<span>roslop.app<span class="path">/games/dig-up-a-dino/playtest/14</span></span></div>${ic("user", "color:#8a8a8f")}</div></div>
+    <div class="body">${shell("games", `<span>Games</span>${ic("right", "width:13px;height:13px")}<span>Dig Up a Dino</span>${ic("right", "width:13px;height:13px")}<b>Playtest</b>`, playtest(), { win: true })}</div></div>` },
 
   "windows-app-settings": { stage: "win", w: 1560, h: 1060, html: () => `<div class="window win" style="width:1560px;height:1060px">
     <div class="winbar">${logo(16)}<span class="ttl">RoSlop</span><div class="ctl">${winCtl}</div></div>
