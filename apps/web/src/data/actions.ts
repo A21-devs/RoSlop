@@ -75,6 +75,38 @@ export async function uploadAsset(file: File, kind: "icon" | "model" | "sound" |
   await db.insert("assets", { name: file.name.replace(/\.[^.]+$/, ""), kind, file_url: path, roblox_id: null, tags: [], game_id });
 }
 
-export function buildVault(s: Snapshot) {
-  return newTask(s, "lead", "Start the vault", "Plan a starter knowledge vault for this studio. Split it into notes, each tagged with `for:` agent ids in its frontmatter, and hand the writing to the right agents. Base it on our games, what got approved or sent back in Review, and what's working on the charts. Keep it to about 15% of a usage window.", null, { priority: "low" });
+// Agents can't see the database, so the brief carries what the studio has done so far.
+function studioFacts(s: Snapshot): string {
+  const out: string[] = [];
+  const games = s.games.map(g => `- ${g.name} (${g.stage}, v${g.version})${g.project_path ? `, project at ${g.project_path}` : ""}`);
+  out.push("Games:", ...(games.length ? games : ["- none yet"]));
+  const reviewed = s.proofs.filter(p => p.verdict !== "waiting").slice(-15)
+    .map(p => `- ${p.verdict === "approved" ? "Approved" : "Sent back"}: ${p.title}${p.feedback ? ` ("${p.feedback}")` : ""}`);
+  if (reviewed.length) out.push("", "Review calls:", ...reviewed);
+  const done = s.tasks.filter(t => t.status === "done" && t.agent !== "lead").slice(-15).map(t => `- ${t.agent}: ${t.title}`);
+  if (done.length) out.push("", "Finished work:", ...done);
+  const pitches = s.pitches.slice(-6).map(p => `- ${p.title} (${p.status}): ${p.summary}`);
+  if (pitches.length) out.push("", "Pitches:", ...pitches);
+  const market = [...s.market_snapshots].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  if (market?.items.length) out.push("", "Top of the charts right now:", ...market.items.slice(0, 12).map(i => `- ${i.name} (${i.genre}, ${i.playing.toLocaleString()} playing)`));
+  return out.join("\n");
+}
+
+export function buildVault(s: Snapshot, game_id: string | null = null) {
+  const brief = `Build our Obsidian vault for real: the crew writes the notes as files, this isn't a summary.
+
+Plan 5 to 8 tasks, each one writing specific notes. Name the exact note files in every brief. Cover:
+- Games: one note per game with what it is, the core loop, where it's at and what's next.
+- Design: what we've learned works, from the Review calls below. Approved things become rules, sent back things become don'ts.
+- References: Pulse and Scenic search the web for reference games, UI, art style and systems that fit our games. One note each with the link, screenshots saved into References/img, and what we take from it.
+- Market: Pulse writes what's on the charts and why, with the numbers.
+- Agent notes: short how-we-do-it notes tagged for the agents that need them (balance, builder, frame, merchant...).
+Every note needs \`for:\` frontmatter naming the agents that should read it, [[links]] to related notes, and a line in Home.md.
+Give the Librarian the last task, after the others: tidy names, fix broken links and fill in Home.md.
+
+What we have so far:
+${studioFacts(s)}
+
+Keep the whole thing to about 15% of a usage window.`;
+  return newTask(s, "lead", "Start the vault", brief, game_id, { priority: "normal" });
 }
