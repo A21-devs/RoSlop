@@ -46,9 +46,13 @@ function resolveCommand(name: Provider): Command | null {
   const found = which(name);
   if (!found) return null;
   if (win && found.toLowerCase().endsWith(".cmd")) {
-    const script = readFileSync(found, "utf8").match(/"%~?dp0%?\\([^"]+\.js)"/i)?.[1];
-    if (!script) return null;
-    return { file: process.execPath, prefix: [resolve(dirname(found), script)], env: { ELECTRON_RUN_AS_NODE: "1" } };
+    const shim = readFileSync(found, "utf8");
+    const script = shim.match(/"%~?dp0%?\\([^"]+\.js)"/i)?.[1];
+    if (script) return { file: process.execPath, prefix: [resolve(dirname(found), script)], env: { ELECTRON_RUN_AS_NODE: "1" } };
+    // Newer installs point the shim at a native binary instead.
+    const exe = shim.match(/"%~?dp0%?\\([^"]+\.exe)"/i)?.[1];
+    if (exe) return { file: resolve(dirname(found), exe), prefix: [], env: {} };
+    return null;
   }
   return { file: found, prefix: [], env: {} };
 }
@@ -61,18 +65,35 @@ export function run(name: Provider, args: string[], opts: { cwd: string; env?: R
   return spawn(cmd.file, [...cmd.prefix, ...args], { cwd: opts.cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, detached: !win });
 }
 
-export function cliFound(name: Provider): Promise<boolean> {
+export interface CliCheck {
+  ok: boolean;
+  detail: string;
+}
+
+// The first run of a CLI on Windows can take a while (updates, antivirus), so be patient.
+export function cliFound(name: Provider): Promise<CliCheck> {
   return new Promise(done => {
+    let out = "";
+    let where = "";
     try {
+      const cmd = resolveCommand(name);
+      if (!cmd) {
+        const shim = which(name);
+        return done({ ok: false, detail: shim ? `Found ${shim} but couldn't work out how to start it.` : `Couldn't find "${name}" on this computer's PATH.` });
+      }
+      where = [cmd.file, ...cmd.prefix].join(" ");
       const child = run(name, ["--version"], { cwd: homedir() });
-      const timer = setTimeout(() => child.kill(), 10000);
-      child.on("error", () => done(false));
+      const timer = setTimeout(() => child.kill(), 45000);
+      child.stdout?.on("data", d => (out += d));
+      child.stderr?.on("data", d => (out += d));
+      child.on("error", e => done({ ok: false, detail: `${where}: ${e.message}` }));
       child.on("exit", code => {
         clearTimeout(timer);
-        done(code === 0);
+        const text = out.trim().split("\n")[0] ?? "";
+        done(code === 0 ? { ok: true, detail: `${text || name} (${where})` } : { ok: false, detail: `${where} exited with ${code ?? "a timeout"}${text ? `: ${text}` : ""}` });
       });
-    } catch {
-      done(false);
+    } catch (e) {
+      done({ ok: false, detail: e instanceof Error ? e.message : String(e) });
     }
   });
 }

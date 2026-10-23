@@ -11,6 +11,10 @@ export interface RunnerStatus {
   studios_open: number;
   working: string[];
   last_error: string | null;
+  // What we found when we looked for the CLI: version and path, or why it failed.
+  cli_detail: string | null;
+  // Plain words on why nothing is starting, when that's the case.
+  note: string | null;
 }
 
 export interface DesktopBridge {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import type { RunnerStatus } from "@roslop/core";
 import { existsSync } from "node:fs";
 import { hostname } from "node:os";
@@ -29,6 +29,12 @@ function createWindow() {
     },
   });
   win.once("ready-to-show", () => win?.show());
+
+  // If the page itself dies (out of memory, GPU hiccup), bring it straight back instead of sitting black.
+  win.webContents.on("render-process-gone", (_, details) => {
+    if (details.reason !== "clean-exit") win?.webContents.reload();
+  });
+  win.on("unresponsive", () => win?.webContents.reload());
 
   // Links to the outside world open in the browser, not in our window.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -81,6 +87,9 @@ function handlers() {
     return r.canceled ? null : r.filePaths[0] ?? null;
   });
 }
+
+// The default File/Edit/View menu does nothing useful on Windows. Macs keep theirs for copy and paste.
+if (process.platform !== "darwin") Menu.setApplicationMenu(null);
 
 app.whenReady().then(async () => {
   await fixPath();

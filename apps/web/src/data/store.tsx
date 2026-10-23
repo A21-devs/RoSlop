@@ -22,7 +22,7 @@ export function connectCloud(url: string, key: string | null) {
   location.reload();
 }
 
-const cloud = cloudConfig();
+export const cloud = cloudConfig();
 export const db: Db = cloud ? cloudDb(cloud.url, cloud.key) : demoDb();
 
 // Small notices at the bottom of the screen. Errors land here instead of vanishing.
@@ -68,7 +68,10 @@ interface Ctx {
 const DataCtx = createContext<Ctx>({ user: undefined, snap: null, problem: null, retry() {}, game: "all", setGame() {} });
 
 function apply(s: Snapshot, c: Change): Snapshot {
-  if (c.table === "settings") return { ...s, settings: { ...s.settings, ...c.row } };
+  if (c.table === "settings") {
+    const row = c.row as Partial<Snapshot["settings"]>;
+    return { ...s, settings: { ...s.settings, ...row, blender: { ...s.settings.blender, ...row.blender }, savings: { ...s.settings.savings, ...row.savings } } };
+  }
   const rows = s[c.table as TableName] as { id: string }[];
   if (c.gone) return { ...s, [c.table]: rows.filter(r => r.id !== c.row.id) };
   const i = rows.findIndex(r => r.id === c.row.id);
@@ -92,24 +95,50 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     let off = () => {};
     let alive = true;
+    let latest: Snapshot | null = null;
     db.load().then(s => {
       if (!alive) return;
       setProblem(null);
+      latest = s;
       setSnap(s);
       off = db.subscribe(c => setSnap(prev => (prev ? apply(prev, c) : prev)));
     }, e => alive && setProblem(e.message));
 
-    // Catch anything realtime missed while the app was asleep or in the background.
+    // Realtime isn't always there (sleep, flaky wifi, a project with it switched off),
+    // so check in often while work is open, and right away when the runner moves.
+    let last = 0;
     const resync = () => {
-      if (document.visibilityState !== "visible" || db.mode === "demo") return;
-      db.load().then(s => alive && setSnap(s), () => {});
+      if (!alive || document.visibilityState !== "visible" || db.mode === "demo") return;
+      last = Date.now();
+      db.load().then(s => {
+        if (!alive) return;
+        latest = s;
+        setSnap(s);
+      }, () => {});
     };
-    const timer = setInterval(resync, 90000);
+    const timer = setInterval(() => {
+      const open = latest?.tasks.some(t => ["queued", "held", "working"].includes(t.status)) ?? true;
+      if (Date.now() - last > (open ? 8000 : 60000)) resync();
+    }, 4000);
+    let soon: ReturnType<typeof setTimeout> | undefined;
+    const nudge = () => {
+      clearTimeout(soon);
+      soon = setTimeout(resync, 600);
+    };
+    let seen = "";
+    window.roslop?.onStatus(st => {
+      const key = st.working.join("|");
+      if (key !== seen) {
+        seen = key;
+        nudge();
+      }
+    });
     document.addEventListener("visibilitychange", resync);
     return () => {
       alive = false;
       off();
       clearInterval(timer);
+      clearTimeout(soon);
       document.removeEventListener("visibilitychange", resync);
     };
   }, [user?.id, attempt]);

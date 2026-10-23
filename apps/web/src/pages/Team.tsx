@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { AGENT, AGENTS, ago, MODELS, type AgentId } from "@roslop/core";
 import { messageAgent } from "../data/actions";
 import { useData, useSnap } from "../data/store";
-import { Av, Icon } from "../ui/bits";
+import { Av, Icon, agentName } from "../ui/bits";
 
 export function Team() {
   const s = useSnap();
@@ -22,7 +22,7 @@ export function Team() {
     const w = s.tasks.find(t => t.agent === k && t.status === "working");
     if (w) return { text: w.title, pill: "working" };
     const q = s.tasks.filter(t => t.agent === k && (t.status === "queued" || t.status === "held")).length;
-    return q ? { text: `${q} waiting`, pill: "queued" } : { text: AGENT[k].job, pill: "" };
+    return q ? { text: `${q} waiting`, pill: "queued" } : { text: AGENT[k]?.job ?? "", pill: "" };
   };
 
   const send = () => {
@@ -61,7 +61,7 @@ export function Team() {
               <>
                 <div className="row muted small" style={{ marginBottom: 6 }}>
                   <Av who={current.requested_by} size="sm" />
-                  {current.requested_by === "you" ? "You asked for this" : `${AGENT[current.requested_by as AgentId].name} wrote this brief`} {ago(current.created_at)} ago
+                  {current.requested_by === "you" ? "You asked for this" : `${agentName(current.requested_by)} wrote this brief`} {ago(current.created_at)} ago
                 </div>
                 <div style={{ fontSize: 17, fontWeight: 600, margin: "6px 0 10px" }}>{current.title}</div>
                 <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{current.brief || <span className="muted">No brief yet.</span>}</div>

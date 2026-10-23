@@ -14,7 +14,11 @@ export function Lead() {
   const worker = s.machines.find(m => m.role === "worker");
   const online = worker && Date.now() - Date.parse(worker.last_seen) < 3 * 60000;
 
-  useEffect(() => end.current?.scrollIntoView({ block: "end" }), [messages.length]);
+  // Braces matter: newer Chromium returns a promise from scrollIntoView, and React
+  // would try to call it as a cleanup function.
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "end" });
+  }, [messages.length]);
 
   const send = () => {
     askLead(s, text, game === "all" ? null : game);

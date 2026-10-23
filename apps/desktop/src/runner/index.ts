@@ -40,6 +40,16 @@ export class Runner {
   private again = false;
   private poke: NodeJS.Timeout | null = null;
   private sent = "";
+  private note: string | null = null;
+  private cliCheckedAt = 0;
+  private cliDetail: string | null = null;
+
+  private async checkCli(provider: Settings["provider"]) {
+    const r = await cliFound(provider);
+    this.cli = r.ok;
+    this.cliDetail = r.detail;
+    this.changed();
+  }
 
   constructor(private onStatus: (s: RunnerStatus) => void) {}
 
@@ -53,6 +63,8 @@ export class Runner {
       studios_open: jobs.filter(j => j.task.needs_studio).length,
       working: jobs.map(j => j.task.title),
       last_error: this.lastError,
+      cli_detail: this.cliDetail,
+      note: this.live ? this.note : this.lastError ? "The crew couldn't start." : "The crew isn't running yet.",
     };
   }
 
@@ -84,7 +96,7 @@ export class Runner {
       const db = connect(tokens);
       const settings = await loadSettings(db, userId);
       const machine = await registerMachine(db, userId, settings.provider);
-      this.cli = await cliFound(settings.provider);
+      await this.checkCli(settings.provider);
 
       // Anything left "working" on this computer is from a run that didn't shut down cleanly.
       await db.from("tasks").update({ status: "queued" }).eq("machine_id", machine.id).eq("status", "working");
@@ -156,7 +168,7 @@ export class Runner {
     if (!live || !row?.user_id) return;
     const before = live.settings.provider;
     live.settings = withDefaults(live.userId, row);
-    if (live.settings.provider !== before) this.cli = await cliFound(live.settings.provider);
+    if (live.settings.provider !== before) await this.checkCli(live.settings.provider);
     void this.checkConnectors();
     this.changed();
     this.soon();
@@ -204,15 +216,38 @@ export class Runner {
       });
   }
 
+  private say(note: string | null) {
+    if (note === this.note) return;
+    this.note = note;
+    this.changed();
+  }
+
   private async schedule() {
     const live = this.live;
-    if (!live || !this.cli) return;
+    if (!live) return;
     const { db } = live;
+    const name = live.settings.provider === "claude" ? "Claude Code" : "Codex";
+
+    // Keep looking, so installing it while the app is open just works.
+    if (!this.cli && Date.now() - this.cliCheckedAt > 60_000) {
+      this.cliCheckedAt = Date.now();
+      await this.checkCli(live.settings.provider);
+    }
+    if (!this.cli) {
+      const install = live.settings.provider === "claude" ? "npm install -g @anthropic-ai/claude-code, then run claude once to sign in" : "npm install -g @openai/codex, then run codex login";
+      return this.say(`${name} isn't working on this computer (${this.cliDetail ?? "not checked"}). If it's not installed, in a terminal: ${install}. Then hit Check again.`);
+    }
 
     const { data: machines } = await db.from("machines").select("*");
-    const me = (machines as Machine[] | null)?.find(m => m.id === live.machine.id);
+    const all = (machines ?? []) as Machine[];
+    const me = all.find(m => m.id === live.machine.id);
     if (me) live.machine = me;
-    if (!shouldWork(me, (machines ?? []) as Machine[])) return;
+    if (!shouldWork(me, all)) {
+      const worker = all.find(m => m.id !== me?.id && m.role === "worker");
+      return this.say(me?.role === "remote"
+        ? "This computer is set to Remote only. Change it to Does the work in Settings, Computers and apps."
+        : `This computer is the backup. ${worker?.name ?? "Your worker"} does the work while it's online. Switch roles in Settings, Computers and apps if this one should do it.`);
+    }
 
     const { data, error } = await db.from("tasks").select("*").in("status", ["queued", "held", "working"]).order("created_at");
     fail("Couldn't load tasks", error);
@@ -220,7 +255,7 @@ export class Runner {
     await this.checkJobs(open);
 
     const waiting = open.filter(t => t.status === "queued" || t.status === "held");
-    if (!waiting.length) return;
+    if (!waiting.length) return this.say(null);
 
     const parentIds = [...new Set(waiting.map(t => t.parent_id).filter((id): id is string => !!id))];
     const { data: parents } = parentIds.length
@@ -248,6 +283,15 @@ export class Runner {
     if (plan.unhold.length) await db.from("tasks").update({ status: "queued" }).in("id", plan.unhold.map(t => t.id)).eq("status", "held");
 
     for (const { task, estimate } of plan.start) await this.launch(live, task, estimate, history);
+
+    const running = open.filter(t => t.status === "working").length + plan.start.length;
+    if (running) return this.say(null);
+    const blockedByParent = waiting.every(t => t.parent_id && !doneParents.has(t.parent_id));
+    this.say(blockedByParent
+      ? "Everything queued is waiting on an earlier task that hasn't finished."
+      : plan.hold.length || waiting.some(t => t.status === "held")
+        ? "Holding off so you don't run out of usage this window. It picks back up on its own."
+        : "Waiting for room in your usage window. It starts on its own.");
   }
 
   // Catches pauses and drops if realtime missed them.
