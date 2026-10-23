@@ -1,7 +1,7 @@
 // All usage numbers are fractions of one 5-hour window: 0.41 means 41% used.
 
 export const WINDOW_MIN = 300;
-const HEADSTART_MIN = 60;
+const HEADSTART_MIN = 90;
 
 export interface PaceState {
   elapsed: number;
