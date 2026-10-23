@@ -8,5 +8,12 @@
 </head>
 <body>
 <script src="ui.js"></script>
+<script src="more.js"></script>
+<script>
+  const shot = SHOTS[new URLSearchParams(location.search).get("s") || "pc-site"];
+  document.body.className = "stage " + shot.stage;
+  document.body.innerHTML = shot.html();
+  window.SHOT = shot;
+</script>
 </body>
 </html>

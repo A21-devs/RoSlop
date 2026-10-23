@@ -7,7 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(here, "out");
 mkdirSync(out, { recursive: true });
 
-const shots = process.argv.slice(2).length ? process.argv.slice(2) : ["pc-site", "mac-site", "mac-app", "windows-app", "mobile-site", "mac-app-market", "windows-app-settings", "windows-app-apps", "pc-site-playtest"];
+const shots = process.argv.slice(2).length ? process.argv.slice(2) : ["pc-site", "mac-site", "mac-app", "windows-app", "mobile-site", "mac-app-market", "windows-app-settings", "windows-app-apps", "pc-site-playtest", "mac-app-team", "windows-app-prompt", "mac-app-vault", "pc-site-pipeline", "windows-app-library", "mac-site-pitch"];
 const browser = await chromium.launch();
 
 for (const s of shots) {

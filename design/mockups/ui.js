@@ -42,6 +42,8 @@ const P = {
   sun: "M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z M12 1v2 M12 21v2 M4.2 4.2l1.4 1.4 M18.4 18.4l1.4 1.4 M1 12h2 M21 12h2",
   grid: "M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z",
   upload: "M12 20V8 M6 14l6-6 6 6 M4 4h16",
+  prompt: "M4 20h4L19 9l-4-4L4 16z M13 7l4 4 M15 20h5",
+  vault: "M4 4h16v16H4z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M12 12h.01 M4 9h2 M4 15h2",
   globe: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M2 12h20 M12 2a15 15 0 0 1 0 20 M12 2a15 15 0 0 0 0 20",
 };
 const ic = (n, s = "") => `<svg class="i" viewBox="0 0 24 24" style="${s}"><path d="${P[n]}"/></svg>`;
@@ -62,6 +64,7 @@ const AG = {
   merchant: ["Merchant", "ME", "#e8c46a"],
   producer: ["Producer", "PR", "#9fb3c8"],
   reviewer: ["Reviewer", "RV", "#ff6262"],
+  liveops: ["Liveops", "LO", "#7ee0ff"],
 };
 const av = (k, cls = "") => `<span class="av ${cls}" style="--c:${AG[k][2]}">${AG[k][1]}</span>`;
 
@@ -180,9 +183,9 @@ function bars({ w = 560, h = 190, data, hi = 0, color = "var(--info)", xl = [] }
 
 function sidebar(on, o = {}) {
   const nav = [
-    ["home", "Home", "3", true], ["lead", "Lead"], ["tasks", "Tasks", "9"], ["review", "Review", "6"],
+    ["home", "Home", "3", true], ["lead", "Lead"], ["team", "Team"], ["tasks", "Tasks", "9"], ["review", "Review", "6"], ["prompt", "Prompt coach"],
   ];
-  const studio = [["games", "Games"], ["pitches", "Pitches"], ["market", "Market"], ["library", "Library"], ["refs", "References"]];
+  const studio = [["games", "Games"], ["pitches", "Pitches"], ["market", "Market"], ["library", "Library"], ["vault", "Vault"]];
   const link = ([k, label, n, hot]) => `<a class="${k === on ? "on" : ""}">${ic(k)}${label}${n ? `<span class="n ${hot ? "hot" : ""}">${n}</span>` : ""}</a>`;
   const team = [["lead", "idle"], ["builder", "working"], ["frame", "working"], ["balance", "working"], ["playtest", "in S2"], ["pulse", "idle"], ["kid", "idle"], ["reviewer", "idle"]];
   return `<aside class="side">${o.mac ? `<div class="lights"><i></i><i></i><i></i></div>` : ""}
@@ -193,7 +196,7 @@ function sidebar(on, o = {}) {
     <nav class="nav">${studio.map(link).join("")}</nav>
     <div class="nav-h" style="display:flex">Team <span style="margin-left:auto" class="mono">4 busy</span></div>
     <div class="team">${team.map(([k, st]) => `<div class="m ${st === "idle" ? "" : "busy"}">${av(k, "sm")}${AG[k][0]}<span class="st">${st}</span></div>`).join("")}
-      <div class="m dim" style="color:var(--dim)">+ 6 more</div></div>
+      <div class="m dim" style="color:var(--dim)">+ 7 more</div></div>
     <div class="side-foot">
       <nav class="nav"><a class="${on === "settings" ? "on" : ""}">${ic("settings")}Settings</a></nav>
       <div class="me"><span class="pfp">SK</span><div class="grow"><div style="font-weight:500">Sam K.</div><div class="sync"><span class="dot"></span>Synced on 3 devices</div></div></div>
@@ -770,8 +773,3 @@ const SHOTS = {
   </div>` },
 };
 
-const key = new URLSearchParams(location.search).get("s") || "pc-site";
-const shot = SHOTS[key];
-document.body.className = "stage " + shot.stage;
-document.body.innerHTML = shot.html();
-window.SHOT = shot;
