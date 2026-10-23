@@ -155,7 +155,9 @@ export function Layout() {
       <Sidebar />
       <main className="main">
         <Top />
-        <CrewBar />
+        <Crash quiet>
+          <CrewBar />
+        </Crash>
         <Crash key={useLocation().pathname}>
           <Outlet />
         </Crash>

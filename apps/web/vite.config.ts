@@ -6,4 +6,6 @@ export default defineConfig({
   base: "./",
   plugins: [react()],
   server: { port: 5173 },
+  // Unminified so an error someone screenshots names the real function.
+  build: { minify: false, sourcemap: true },
 });

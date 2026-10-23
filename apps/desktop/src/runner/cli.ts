@@ -65,18 +65,35 @@ export function run(name: Provider, args: string[], opts: { cwd: string; env?: R
   return spawn(cmd.file, [...cmd.prefix, ...args], { cwd: opts.cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, detached: !win });
 }
 
-export function cliFound(name: Provider): Promise<boolean> {
+export interface CliCheck {
+  ok: boolean;
+  detail: string;
+}
+
+// The first run of a CLI on Windows can take a while (updates, antivirus), so be patient.
+export function cliFound(name: Provider): Promise<CliCheck> {
   return new Promise(done => {
+    let out = "";
+    let where = "";
     try {
+      const cmd = resolveCommand(name);
+      if (!cmd) {
+        const shim = which(name);
+        return done({ ok: false, detail: shim ? `Found ${shim} but couldn't work out how to start it.` : `Couldn't find "${name}" on this computer's PATH.` });
+      }
+      where = [cmd.file, ...cmd.prefix].join(" ");
       const child = run(name, ["--version"], { cwd: homedir() });
-      const timer = setTimeout(() => child.kill(), 10000);
-      child.on("error", () => done(false));
+      const timer = setTimeout(() => child.kill(), 45000);
+      child.stdout?.on("data", d => (out += d));
+      child.stderr?.on("data", d => (out += d));
+      child.on("error", e => done({ ok: false, detail: `${where}: ${e.message}` }));
       child.on("exit", code => {
         clearTimeout(timer);
-        done(code === 0);
+        const text = out.trim().split("\n")[0] ?? "";
+        done(code === 0 ? { ok: true, detail: `${text || name} (${where})` } : { ok: false, detail: `${where} exited with ${code ?? "a timeout"}${text ? `: ${text}` : ""}` });
       });
-    } catch {
-      done(false);
+    } catch (e) {
+      done({ ok: false, detail: e instanceof Error ? e.message : String(e) });
     }
   });
 }

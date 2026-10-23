@@ -42,6 +42,14 @@ export class Runner {
   private sent = "";
   private note: string | null = null;
   private cliCheckedAt = 0;
+  private cliDetail: string | null = null;
+
+  private async checkCli(provider: Settings["provider"]) {
+    const r = await cliFound(provider);
+    this.cli = r.ok;
+    this.cliDetail = r.detail;
+    this.changed();
+  }
 
   constructor(private onStatus: (s: RunnerStatus) => void) {}
 
@@ -55,6 +63,7 @@ export class Runner {
       studios_open: jobs.filter(j => j.task.needs_studio).length,
       working: jobs.map(j => j.task.title),
       last_error: this.lastError,
+      cli_detail: this.cliDetail,
       note: this.live ? this.note : this.lastError ? "The crew couldn't start." : "The crew isn't running yet.",
     };
   }
@@ -87,7 +96,7 @@ export class Runner {
       const db = connect(tokens);
       const settings = await loadSettings(db, userId);
       const machine = await registerMachine(db, userId, settings.provider);
-      this.cli = await cliFound(settings.provider);
+      await this.checkCli(settings.provider);
 
       // Anything left "working" on this computer is from a run that didn't shut down cleanly.
       await db.from("tasks").update({ status: "queued" }).eq("machine_id", machine.id).eq("status", "working");
@@ -159,7 +168,7 @@ export class Runner {
     if (!live || !row?.user_id) return;
     const before = live.settings.provider;
     live.settings = withDefaults(live.userId, row);
-    if (live.settings.provider !== before) this.cli = await cliFound(live.settings.provider);
+    if (live.settings.provider !== before) await this.checkCli(live.settings.provider);
     void this.checkConnectors();
     this.changed();
     this.soon();
@@ -222,11 +231,11 @@ export class Runner {
     // Keep looking, so installing it while the app is open just works.
     if (!this.cli && Date.now() - this.cliCheckedAt > 60_000) {
       this.cliCheckedAt = Date.now();
-      this.cli = await cliFound(live.settings.provider);
+      await this.checkCli(live.settings.provider);
     }
     if (!this.cli) {
       const install = live.settings.provider === "claude" ? "npm install -g @anthropic-ai/claude-code, then run claude once to sign in" : "npm install -g @openai/codex, then run codex login";
-      return this.say(`${name} isn't installed on this computer, or I can't find it. In a terminal: ${install}. Then hit Check again.`);
+      return this.say(`${name} isn't working on this computer (${this.cliDetail ?? "not checked"}). If it's not installed, in a terminal: ${install}. Then hit Check again.`);
     }
 
     const { data: machines } = await db.from("machines").select("*");

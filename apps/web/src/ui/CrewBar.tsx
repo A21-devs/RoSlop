@@ -9,9 +9,22 @@ export function CrewBar() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!window.roslop) return;
-    window.roslop.status().then(setStatus);
-    return window.roslop.onStatus(setStatus);
+    const bridge = window.roslop;
+    if (!bridge) return;
+    let alive = true;
+    const set = (s: RunnerStatus) => alive && setStatus(s);
+    const poll = () => bridge.status().then(set, () => {});
+    poll();
+    try {
+      bridge.onStatus(set);
+    } catch {
+      // polling covers it
+    }
+    const timer = setInterval(poll, 5000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
   }, []);
 
   const waiting = s.tasks.filter(t => t.status === "queued" || t.status === "held").length;

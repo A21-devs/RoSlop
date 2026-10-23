@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useParams } from "react-router-dom";
-import { AGENTS, ago, CONNECTORS, KEYS, MODELS, pct, projected, SAVINGS, serverFor, WINDOW_MIN, type AppEntry, type MachineRole, type Settings as S, type Tier } from "@roslop/core";
+import { AGENTS, ago, CONNECTORS, KEYS, MODELS, pct, projected, SAVINGS, serverFor, WINDOW_MIN, type AppEntry, type MachineRole, type RunnerStatus, type Settings as S, type Tier } from "@roslop/core";
 import { resetDemo } from "../data/demo";
 import { db, toast, useData, useSnap, useUsage } from "../data/store";
 import { Av, Icon, Toggle } from "../ui/bits";
@@ -98,6 +98,51 @@ function Usage() {
   );
 }
 
+// What the desktop app sees on this machine, so problems aren't a guessing game.
+function ThisComputer() {
+  const [st, setSt] = useState<RunnerStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const poll = () => window.roslop!.status().then(s => alive && setSt(s), () => {});
+    poll();
+    const t = setInterval(poll, 4000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+  const recheck = async () => {
+    setBusy(true);
+    const session = await db.session();
+    if (session) {
+      await window.roslop!.stopRunner();
+      setSt(await window.roslop!.startRunner(session));
+    } else toast("Sign in with your Supabase project first. The demo can't run the crew.", true);
+    setBusy(false);
+  };
+  const line = (label: string, value: React.ReactNode, ok?: boolean) => (
+    <div className="row" style={{ padding: "7px 0", alignItems: "flex-start" }}>
+      <span className="muted" style={{ width: 130, flex: "none" }}>{label}</span>
+      <span className={`grow ${ok === false ? "bad" : ok ? "ok" : ""}`} style={{ wordBreak: "break-word", userSelect: "text" }}>{value}</span>
+    </div>
+  );
+  return (
+    <div className="card pad" style={{ marginTop: 18 }}>
+      <div className="sec-h"><h3>This computer</h3><button className="btn sm r" disabled={busy} onClick={recheck}>{busy ? "Checking…" : "Check again"}</button></div>
+      {!st ? <div className="muted">Asking the desktop app…</div> : (
+        <div className="list">
+          {line("Crew", db.mode === "demo" ? "Not running, this is the demo" : st.running ? "Running" : "Stopped", db.mode !== "demo" && st.running)}
+          {line(st.provider === "claude" ? "Claude Code" : "Codex", st.cli_detail ?? (st.cli_found ? "Found" : "Not checked yet"), st.cli_found)}
+          {line("Working on", st.working.length ? st.working.join(", ") : "Nothing right now")}
+          {st.note && line("Why it's waiting", st.note)}
+          {st.last_error && line("Last problem", st.last_error, false)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Computers() {
   const s = useSnap();
   const st = s.settings;
@@ -120,6 +165,7 @@ function Computers() {
     <>
       <h1 className="page">Computers and apps</h1>
       <p className="lede">One computer does the work. Everything else, your phone included, is a remote that sends it jobs. If it's off, jobs wait and start when it's back.</p>
+      {window.roslop && <ThisComputer />}
       <div className="card list" style={{ marginTop: 18, padding: "0 16px" }}>
         {s.machines.map(m => {
           const online = Date.now() - Date.parse(m.last_seen) < 3 * 60000;
