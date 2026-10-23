@@ -63,7 +63,7 @@ When it opens you can try the demo straight away, or connect your own Supabase p
 **1. A free Supabase project.** This is where your account and data live, so your phone, browser and PC all see the same thing.
 
 - Make a project at supabase.com.
-- Open the SQL editor and run the files in `supabase/migrations`, in order.
+- Connect the app to it (next steps) and it walks you through creating the tables: copy the setup code, paste it into the SQL editor, press Run. The code is `supabase/setup.sql`, and it's safe to run again after updates.
 - Optional: GitHub or Google sign in. Both are off until you set them up, and the app only shows the ones you've turned on. Either way the callback URL is `https://<your-project>.supabase.co/auth/v1/callback`.
   - **GitHub**: GitHub, Settings, Developer settings, OAuth Apps, New OAuth App. Paste the callback URL, then put the Client ID and a new Client secret into Supabase under Authentication, Sign In / Providers, GitHub.
   - **Google**: Google Cloud Console, APIs & Services, set up the OAuth consent screen, then Credentials, Create OAuth client ID, Web application. Add the callback URL as an authorized redirect URI and put the Client ID and secret into Supabase under the Google provider.
