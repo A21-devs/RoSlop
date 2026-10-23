@@ -1,4 +1,4 @@
-import type { Settings } from "./types";
+import type { BlenderRules, Settings } from "./types";
 
 export const SAVINGS = [
   { id: "short_handoffs", name: "Short handoffs", what: "Agents pass a summary to the next one, not the whole chat", cut: 0.3 },
@@ -13,7 +13,39 @@ export const CONNECTORS = [
   { id: "github", name: "GitHub", use: "Builder pushes to a branch, never main" },
   { id: "linear", name: "Linear", use: "Producer files bugs from Playtest and Reviewer" },
   { id: "notion", name: "Notion", use: "The Lead can read your design docs" },
+  { id: "blender", name: "Blender", use: "Librarian and Scenic build and clean up models, then export them for Studio" },
 ] as const;
+
+// Matches a connector to a server name from `claude mcp list`, like "figma" or "blender-mcp".
+export function serverFor(id: string, found: string[] | null): string | undefined {
+  return found?.find(n => n.toLowerCase().includes(id));
+}
+
+export const BLENDER_DEFAULTS: BlenderRules = {
+  style: "stylized",
+  max_tris: 4000,
+  texture: 512,
+  single_material: true,
+  bake: true,
+  pivot_bottom: true,
+  collision: "box",
+  notes: "",
+};
+
+// What the crew is told whenever they touch Blender.
+export function blenderBrief(r: BlenderRules): string {
+  return [
+    `Style: ${r.style}. Keep every model in that style so they look like one game.`,
+    `Budget: at most ${r.max_tris.toLocaleString()} triangles per model (Roblox caps a MeshPart at 20,000). Decimate or retopo until it fits.`,
+    `Textures: ${r.texture}x${r.texture} max, power of two.${r.bake ? " Bake detail into the texture instead of adding geometry." : ""}`,
+    r.single_material ? "One material per model. Combine with a texture atlas if you need more." : "",
+    "Scale for Roblox: 1 stud is about 0.28 m. A player is roughly 5 studs tall, build to that.",
+    r.pivot_bottom ? "Put the pivot at the bottom center, apply all transforms, face -Z forward." : "Apply all transforms before export.",
+    `Collision in Studio: ${r.collision === "box" ? "Box" : r.collision === "hull" ? "Hull" : "PreciseConvexDecomposition, only when it really matters"}.`,
+    "Export FBX, check it in Studio, and screenshot it next to a player for scale as PROOF.",
+    r.notes.trim() ? `Also: ${r.notes.trim()}` : "",
+  ].filter(Boolean).join("\n");
+}
 
 // Keys never leave the computer that runs the agents.
 export const KEYS = [
@@ -37,5 +69,7 @@ export function defaultSettings(user_id: string): Settings {
     connectors: {},
     vault_path: null,
     studio_mcp: null,
+    blender: BLENDER_DEFAULTS,
+    mcp_found: null,
   };
 }

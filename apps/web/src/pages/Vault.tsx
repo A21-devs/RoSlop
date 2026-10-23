@@ -1,6 +1,6 @@
 import { AGENTS } from "@roslop/core";
 import { buildVault } from "../data/actions";
-import { db, useSnap } from "../data/store";
+import { db, toast, useSnap } from "../data/store";
 import { Icon } from "../ui/bits";
 
 const EXAMPLE = `---
@@ -20,7 +20,9 @@ export function Vault() {
 
   const pick = async () => {
     const p = await window.roslop?.pickFolder();
-    if (p) await db.saveSettings({ vault_path: p });
+    if (!p) return;
+    await db.saveSettings({ vault_path: p });
+    toast("Vault set. Agents read the notes tagged for them from now on.");
   };
 
   return (
@@ -34,7 +36,7 @@ export function Vault() {
             <div className="sec-h" style={{ margin: 0 }}><h3>The folder</h3></div>
             {path ? (
               <div className="row"><span className="mono grow trunc">{path}</span>
-                <a className="btn sm" href={`obsidian://open?path=${encodeURIComponent(path)}`}><Icon name="ext" size={13} />Open in Obsidian</a>
+                <button className="btn sm" onClick={() => window.open(`obsidian://open?path=${encodeURIComponent(path)}`)}><Icon name="ext" size={13} />Open in Obsidian</button>
               </div>
             ) : (
               <div className="muted">No vault yet. Point at a folder of Markdown notes, or let the crew start one.</div>

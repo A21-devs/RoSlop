@@ -45,6 +45,9 @@ export function demoDb(): Db {
       setIn(true);
       return null;
     },
+    async providers() {
+      return [];
+    },
     async signInWith() {
       setIn(true);
       return null;

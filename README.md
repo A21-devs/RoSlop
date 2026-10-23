@@ -64,7 +64,11 @@ When it opens you can try the demo straight away, or connect your own Supabase p
 
 - Make a project at supabase.com.
 - Open the SQL editor and run the files in `supabase/migrations`, in order.
-- Optional: turn on GitHub or Google under Authentication, Providers.
+- Optional: GitHub or Google sign in. Both are off until you set them up, and the app only shows the ones you've turned on. Either way the callback URL is `https://<your-project>.supabase.co/auth/v1/callback`.
+  - **GitHub**: GitHub, Settings, Developer settings, OAuth Apps, New OAuth App. Paste the callback URL, then put the Client ID and a new Client secret into Supabase under Authentication, Sign In / Providers, GitHub.
+  - **Google**: Google Cloud Console, APIs & Services, set up the OAuth consent screen, then Credentials, Create OAuth client ID, Web application. Add the callback URL as an authorized redirect URI and put the Client ID and secret into Supabase under the Google provider.
+  - Under Authentication, URL Configuration, set the Site URL to wherever you host the website.
+  - The desktop app uses email and password for now.
 - In the app, paste the project URL and anon key (Project Settings, API) and hit Connect.
 
 **2. Claude Code or Codex** on the computer that does the work. Install one and sign in once. RoSlop uses your plan, nothing goes through anyone else.

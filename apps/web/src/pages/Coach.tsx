@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { askLead } from "../data/actions";
 import { useData, useSnap } from "../data/store";
+import { suggestions, TEMPLATES } from "../data/templates";
 import { Icon } from "../ui/bits";
 
 // Runs in the browser, so coaching a prompt costs none of your usage.
@@ -23,14 +24,6 @@ const CHECKS: Check[] = [
   { id: "ref", label: "A reference", hint: "One clip or game beats three paragraphs about a vibe.", test: /(https?:\/\/|\blike (in )?[A-Z]|\bsimilar to\b|\breference\b)/, ask: "Anything it should feel like?", write: a => `Reference: ${a}.`, picks: [] },
 ];
 
-const TEMPLATES = [
-  ["A boss fight", "Add a boss to [zone]. It's for [who]. It should be hard because of [attacks you dodge, phases, adds], not a huge HP bar. Done when Playtest beats it in 3 to 6 tries with [squad]."],
-  ["Something's broken", "When I [what you did], [what happened]. I expected [what should happen]. It happens on [PC / phone]."],
-  ["The first 5 minutes", "New players [what they do wrong or where they quit]. By minute 5 they should have [goal]. Don't add more popups."],
-  ["Copy a feeling", "Make [thing] feel like [game or clip]. What I like about it is [specific part]."],
-  ["A shop item", "Add [item] to the shop for [price]. It's for [who buys it]. It must not [what it can't break]."],
-  ["Too slow or too fast", "[Part of the game] feels too [slow / fast] around [level or minute]. It should take about [time]."],
-];
 
 export function Coach() {
   const s = useSnap();
@@ -38,6 +31,14 @@ export function Coach() {
   const nav = useNavigate();
   const [text, setText] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [forGame, setForGame] = useState(game === "all" ? s.games[0]?.id ?? "" : game);
+  const [group, setGroup] = useState("All");
+
+  const g = s.games.find(x => x.id === forGame);
+  const name = g?.name ?? "the game";
+  const ideas = useMemo(() => suggestions(s, forGame), [s, forGame]);
+  const groups = ["All", ...new Set(TEMPLATES.map(t => t.group))];
+  const shown = TEMPLATES.filter(t => group === "All" || t.group === group);
 
   const missing = CHECKS.filter(c => !c.test.test(text));
   const added = missing.filter(c => answers[c.id]?.trim()).map(c => c.write(answers[c.id].trim()));
@@ -45,21 +46,33 @@ export function Coach() {
   const guesses = missing.length - added.length;
   const words = text.trim().split(/\s+/).filter(Boolean).length;
 
+  const use = (body: string) => {
+    setText(body);
+    setAnswers({});
+    scrollTo({ top: 0, behavior: "smooth" });
+  };
   const send = async (t: string) => {
-    await askLead(s, t, game === "all" ? null : game);
+    await askLead(s, t, forGame || null);
     nav("/lead");
   };
 
   return (
     <div className="content">
       <div className="head">
-        <div className="grow"><h1 className="page">Prompt coach</h1><p className="lede">Write it however you want. This shows what the crew would have to guess, and fills the gaps before it goes to the Lead. Guesses turn into rework, and rework eats your usage.</p></div>
+        <div className="grow"><h1 className="page">Prompt engineering</h1><p className="lede">Write it however you want. This shows what the crew would have to guess and fills the gaps before it goes to the Lead. Guesses turn into rework, and rework eats your usage. It all runs on your device, so it's free.</p></div>
+        <label className="field" style={{ minWidth: 220 }}><span>For</span>
+          <select className="input" value={forGame} onChange={e => setForGame(e.target.value)}>
+            <option value="">No particular game</option>
+            {s.games.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        </label>
       </div>
-      <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+
+      <div className="grid2" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
         <div className="col" style={{ gap: 14 }}>
           <div className="card pad">
-            <div className="sec-h"><h3>What you want</h3></div>
-            <textarea className="textarea" rows={5} value={text} onChange={e => setText(e.target.value)} placeholder="add a boss to frostpeak thats actually hard, players are bored" />
+            <div className="sec-h"><h3>What you want</h3>{text && <button className="r btn sm ghost" onClick={() => use("")}>Clear</button>}</div>
+            <textarea className="textarea" rows={6} style={{ width: "100%", minHeight: 140 }} value={text} onChange={e => setText(e.target.value)} placeholder={`add a boss to ${g ? name.toLowerCase() : "frostpeak"} thats actually hard, players are bored`} />
             {words > 0 && (
               <div style={{ marginTop: 12 }}>
                 <div className="row small"><span className="muted grow">How much the crew would have to guess</span><b className={guesses > 2 ? "warn" : "ok"}>{guesses === 0 ? "nothing" : guesses > 2 ? "a lot" : "a little"}</b></div>
@@ -88,27 +101,45 @@ export function Coach() {
               })}
             </div>
           )}
-        </div>
-        <div className="col" style={{ gap: 14 }}>
           <div className="card pad" style={{ borderColor: "var(--line-2)" }}>
             <div className="sec-h"><h3>What the Lead will get</h3></div>
-            <div style={{ whiteSpace: "pre-wrap", minHeight: 80, lineHeight: 1.6 }} className={better ? "" : "muted"}>{better || "Start typing on the left."}</div>
+            <div style={{ whiteSpace: "pre-wrap", minHeight: 60, lineHeight: 1.6 }} className={better ? "" : "muted"}>{better || "Start typing above, or pick something on the right."}</div>
             <div className="row wrap" style={{ marginTop: 14 }}>
               <button className="btn pri" disabled={!better} onClick={() => send(better)}><Icon name="up" size={14} />Send to Lead</button>
               <button className="btn" disabled={!better} onClick={() => navigator.clipboard.writeText(better)}>Copy</button>
               {added.length > 0 && <button className="btn ghost" onClick={() => send(text)}>Send mine as is</button>}
             </div>
           </div>
+        </div>
+
+        <div className="col" style={{ gap: 14 }}>
+          {ideas.length > 0 && (
+            <div className="card pad">
+              <div className="sec-h"><h3>Suggested for {name}</h3><span className="r">from what's going on with it</span></div>
+              <div className="col">
+                {ideas.map(i => (
+                  <button key={i.title} className="card flat" style={{ padding: "10px 12px", textAlign: "left", background: "var(--raise)" }} onClick={() => use(i.body)}>
+                    <div className="row"><b className="grow">{i.title}</b><span className="muted small">{i.why}</span></div>
+                    <div className="muted small" style={{ marginTop: 3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{i.body}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="card pad">
-            <div className="sec-h"><h3>Start from a template</h3></div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {TEMPLATES.map(([t, body]) => (
-                <button key={t} className="card flat" style={{ padding: "10px 12px", textAlign: "left", background: "var(--raise)" }} onClick={() => setText(body)}>
-                  <div style={{ fontWeight: 500 }}>{t}</div>
-                  <div className="muted small trunc">{body}</div>
+            <div className="sec-h"><h3>Templates</h3><span className="c">{TEMPLATES.length}</span></div>
+            <div className="row wrap" style={{ gap: 6, marginBottom: 10 }}>
+              {groups.map(x => <button key={x} className={`pill ${group === x ? "on" : ""}`} onClick={() => setGroup(x)}>{x}</button>)}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+              {shown.map(t => (
+                <button key={t.title} className="card flat" style={{ padding: "10px 12px", textAlign: "left", background: "var(--raise)", minWidth: 0 }} onClick={() => use(t.body(name))}>
+                  <div style={{ fontWeight: 500 }}>{t.title}</div>
+                  <div className="muted small" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.body(name)}</div>
                 </button>
               ))}
             </div>
+            <div className="dim small" style={{ marginTop: 8 }}>Square brackets are yours to fill in.</div>
           </div>
         </div>
       </div>

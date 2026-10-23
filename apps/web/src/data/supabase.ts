@@ -2,12 +2,31 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { defaultSettings, type Settings, type TableName } from "@roslop/core";
 import { emptySnapshot, TABLES, type Change, type Db, type User } from "./db";
 
+// Turns Supabase's errors into something a person can act on.
+export function explain(e: { message?: string; code?: string } | null | undefined): string {
+  const msg = e?.message ?? String(e);
+  if (e?.code === "42P01" || e?.code === "PGRST205" || /does not exist|Could not find the table/i.test(msg)) {
+    return "Your Supabase project is missing some tables. Run every file in supabase/migrations in the SQL editor, in order.";
+  }
+  if (e?.code === "PGRST204" || /Could not find the '.+' column/i.test(msg)) {
+    return "Your database is a version behind. Run the newest file in supabase/migrations in the SQL editor.";
+  }
+  if (/JWT|token/i.test(msg)) return "You got signed out. Sign in again.";
+  if (/Failed to fetch|NetworkError/i.test(msg)) return "Can't reach Supabase. Check your internet connection.";
+  return msg;
+}
+
 export function cloudDb(url: string, anonKey: string): Db {
   const sb: SupabaseClient = createClient(url, anonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
   let current: User | null = null;
+  const listeners = new Set<(c: Change) => void>();
 
   const toUser = (u: { id: string; email?: string } | null | undefined): User | null => (u ? { id: u.id, email: u.email ?? "" } : null);
   const fail = (e: { message: string } | null) => (e ? e.message : null);
+  const emit = (c: Change) => listeners.forEach(l => l(c));
+  const check = (error: { message: string; code?: string } | null) => {
+    if (error) throw new Error(explain(error));
+  };
 
   return {
     mode: "cloud",
@@ -35,6 +54,16 @@ export function cloudDb(url: string, anonKey: string): Db {
     async signUp(email, password) {
       return fail((await sb.auth.signUp({ email, password })).error);
     },
+    // Only offer the buttons the project has actually switched on.
+    async providers() {
+      try {
+        const r = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: anonKey } });
+        const ext = (await r.json()).external ?? {};
+        return (["github", "google"] as const).filter(p => ext[p]);
+      } catch {
+        return [];
+      }
+    },
     async signInWith(provider) {
       return fail((await sb.auth.signInWithOAuth({ provider, options: { redirectTo: location.href.split("#")[0] } })).error);
     },
@@ -44,58 +73,83 @@ export function cloudDb(url: string, anonKey: string): Db {
 
     async load() {
       const uid = current!.id;
-      const { data: s } = await sb.from("settings").select("*").maybeSingle();
+      const { data: s, error } = await sb.from("settings").select("*").maybeSingle();
+      check(error);
       let settings = s as Settings | null;
       if (!settings) {
         settings = defaultSettings(uid);
-        await sb.from("settings").insert(settings);
+        const { error: e2 } = await sb.from("settings").insert(settings);
+        check(e2);
       }
-      const snap = emptySnapshot({ ...defaultSettings(uid), ...settings });
+      const base = defaultSettings(uid);
+      const snap = emptySnapshot({ ...base, ...settings, savings: { ...base.savings, ...settings.savings }, blender: { ...base.blender, ...settings.blender } });
       // Events and stats grow forever, so only pull recent ones up front.
       await Promise.all(TABLES.map(async t => {
         let q = sb.from(t).select("*").order("created_at", { ascending: true });
         if (t === "task_events" || t === "game_stats") q = q.gte("created_at", new Date(Date.now() - 14 * 864e5).toISOString());
-        const { data } = await q.limit(5000);
+        const { data, error: e3 } = await q.limit(5000);
+        check(e3);
         (snap as Record<string, unknown>)[t] = data ?? [];
       }));
       return snap;
     },
 
     subscribe(cb) {
-      const ch = sb.channel("everything");
-      for (const t of [...TABLES, "settings"]) {
-        ch.on("postgres_changes", { event: "*", schema: "public", table: t }, p => {
-          if (p.eventType === "DELETE") cb({ table: t as TableName, row: { id: (p.old as { id: string }).id }, gone: true });
-          else cb({ table: t, row: p.new } as Change);
+      listeners.add(cb);
+      let ch = sb.channel(`everything-${Date.now()}`);
+      const join = () => {
+        for (const t of [...TABLES, "settings"]) {
+          ch.on("postgres_changes", { event: "*", schema: "public", table: t }, p => {
+            if (p.eventType === "DELETE") cb({ table: t as TableName, row: { id: (p.old as { id: string }).id }, gone: true });
+            else cb({ table: t, row: p.new } as Change);
+          });
+        }
+        // Realtime drops now and then (sleep, flaky wifi). Rejoin instead of going quiet.
+        ch.subscribe(status => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            setTimeout(() => {
+              if (!listeners.has(cb)) return;
+              sb.removeChannel(ch);
+              ch = sb.channel(`everything-${Date.now()}`);
+              join();
+            }, 3000);
+          }
         });
-      }
-      ch.subscribe();
+      };
+      join();
       return () => {
+        listeners.delete(cb);
         sb.removeChannel(ch);
       };
     },
 
+    // Every write shows up straight away. Realtime echoes it back later, which is harmless.
     async insert(table, row) {
       const { data, error } = await sb.from(table).insert(row as never).select().single();
-      if (error) throw error;
-      return data;
+      check(error);
+      emit({ table, row: data } as Change);
+      return data as never;
     },
     async update(table, id, patch) {
-      const { error } = await sb.from(table).update(patch as never).eq("id", id);
-      if (error) throw error;
+      const { data, error } = await sb.from(table).update(patch as never).eq("id", id).select().single();
+      check(error);
+      emit({ table, row: data } as Change);
     },
     async remove(table, id) {
-      await sb.from(table).delete().eq("id", id);
+      const { error } = await sb.from(table).delete().eq("id", id);
+      check(error);
+      emit({ table, row: { id }, gone: true });
     },
     async saveSettings(patch) {
+      emit({ table: "settings", row: patch as Settings });
       const { error } = await sb.from("settings").update(patch).eq("user_id", current!.id);
-      if (error) throw error;
+      check(error);
     },
 
     async upload(file, folder) {
       const path = `${current!.id}/${folder}/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
       const { error } = await sb.storage.from("files").upload(path, file);
-      if (error) throw error;
+      check(error);
       return path;
     },
     async fileUrl(path) {

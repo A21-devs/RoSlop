@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { connectCloud, db } from "../data/store";
 import { Logo } from "../ui/bits";
 
@@ -10,7 +10,13 @@ export function Login() {
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState("");
   const [key, setKey] = useState("");
+  const [providers, setProviders] = useState<("github" | "google")[]>([]);
   const demo = db.mode === "demo";
+
+  // OAuth can't land back inside the desktop app yet, so it sticks to email there.
+  useEffect(() => {
+    if (!window.roslop) db.providers().then(setProviders);
+  }, []);
 
   const go = async () => {
     setBusy(true);
@@ -37,9 +43,10 @@ export function Login() {
           </>
         ) : (
           <>
-            <button className="btn lg" onClick={() => db.signInWith("github")}>Continue with GitHub</button>
-            <button className="btn lg" onClick={() => db.signInWith("google")}>Continue with Google</button>
-            <div className="row dim small"><hr className="grow" style={{ border: 0, borderTop: "1px solid var(--line)" }} />or<hr className="grow" style={{ border: 0, borderTop: "1px solid var(--line)" }} /></div>
+            {providers.map(p => (
+              <button key={p} className="btn lg" onClick={async () => setError(await db.signInWith(p))}>Continue with {p === "github" ? "GitHub" : "Google"}</button>
+            ))}
+            {providers.length > 0 && <div className="row dim small"><hr className="grow" style={{ border: 0, borderTop: "1px solid var(--line)" }} />or<hr className="grow" style={{ border: 0, borderTop: "1px solid var(--line)" }} /></div>}
             <input className="input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
             <input className="input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && go()} />
             {error && <div className="small warn">{error}</div>}

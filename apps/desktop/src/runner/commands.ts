@@ -24,6 +24,7 @@ export interface ClaudeRun {
   model: string | null;
   resume?: string;
   mcpConfig?: string;
+  servers?: string[];
 }
 
 export function claudeArgs(r: ClaudeRun): string[] {
@@ -33,6 +34,7 @@ export function claudeArgs(r: ClaudeRun): string[] {
   // -p can't ask for permission, so name what the crew may use. Bash covers Blender, tests and Open Cloud uploads.
   const tools = ["Bash", "Read", "Edit", "Write", "Glob", "Grep", "WebFetch", "WebSearch", "TodoWrite"];
   if (r.mcpConfig) tools.push("mcp__roblox_studio");
+  for (const s of r.servers ?? []) tools.push(`mcp__${s}`);
   args.push("--allowedTools", tools.join(","));
   if (r.model) args.push("--model", r.model);
   if (r.mcpConfig) args.push("--mcp-config", r.mcpConfig);
