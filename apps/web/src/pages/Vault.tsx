@@ -16,7 +16,7 @@ Bad streaks end. After enough misses the next roll gets better.`;
 export function Vault() {
   const s = useSnap();
   const path = s.settings.vault_path;
-  const building = s.tasks.some(t => t.title === "Start the vault" && !["done", "dropped", "failed"].includes(t.status));
+  const building = s.tasks.some(t => (t.title === "Start the vault" || t.title.startsWith("Vault: ")) && !["done", "dropped", "failed"].includes(t.status));
 
   const pick = async () => {
     const p = await window.roslop?.pickFolder();
@@ -54,9 +54,9 @@ export function Vault() {
         </div>
         <div className="card pad col" style={{ alignSelf: "flex-start" }}>
           <b style={{ fontSize: 14 }}>Grow it with the crew</b>
-          <div className="muted">Starting from nothing, or yours is thin? The Lead plans a starter vault from your games, what you approved or sent back in Review, and what's working on the charts. You approve every page.</div>
-          <button className="btn pri" disabled={building} onClick={() => buildVault(s)}><Icon name="lead" size={14} />{building ? "The crew is on it" : "Start building the vault"}</button>
-          <div className="dim small">Runs as low priority, so it never pushes your real work out of the window.</div>
+          <div className="muted">Starting from nothing, or yours is thin? The Lead splits it into tasks and the crew writes real notes into the folder: a page per game, design rules from what you approved or sent back, web references with screenshots, and what's working on the charts.</div>
+          <button className="btn pri" disabled={building} onClick={() => buildVault(s).then(() => toast(path ? "Sent to the Lead. Notes land in your vault as each task finishes." : "Sent to the Lead. No folder picked, so it starts one in Documents/RoSlop Vault."))}><Icon name="lead" size={14} />{building ? "The crew is on it" : "Start building the vault"}</button>
+          <div className="dim small">{path ? "Notes show up in the folder as each task finishes." : "No folder yet? It starts one in Documents/RoSlop Vault."}</div>
         </div>
       </div>
     </div>

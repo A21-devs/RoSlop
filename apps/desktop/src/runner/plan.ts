@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AGENT, estimate, readPlan, stripPlan, type Task } from "@roslop/core";
 import { randomUUID } from "node:crypto";
 import { fail } from "./db";
+import { isVaultTask } from "./vault";
 
 type History = Pick<Task, "agent" | "used" | "status">[];
 
@@ -18,7 +19,8 @@ export async function savePlan(db: SupabaseClient, userId: string, lead: Task, t
         user_id: userId,
         game_id: lead.game_id,
         agent: p.agent,
-        title: p.title,
+        // Keep vault work recognisable, so it runs inside the vault folder.
+        title: isVaultTask(lead) && !isVaultTask(p) ? `Vault: ${p.title}` : p.title,
         brief: p.brief,
         priority: p.priority,
         status: "queued",

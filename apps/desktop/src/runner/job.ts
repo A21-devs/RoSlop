@@ -110,7 +110,7 @@ export class Job {
       writeFileSync(this.mcpFile, JSON.stringify(mcpConfig(settings.studio_mcp)));
     }
 
-    return run("claude", claudeArgs({ prompt, system, model, resume: session, mcpConfig: this.mcpFile ?? undefined, servers: onServers(settings) }), { cwd: this.cwd, env });
+    return run("claude", claudeArgs({ prompt, system, model, resume: session, mcpConfig: this.mcpFile ?? undefined, servers: onServers(settings), addDirs: settings.vault_path && settings.vault_path !== this.cwd ? [settings.vault_path] : [] }), { cwd: this.cwd, env });
   }
 
   private handle(ev: StreamEvent) {

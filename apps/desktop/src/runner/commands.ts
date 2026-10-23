@@ -25,6 +25,7 @@ export interface ClaudeRun {
   resume?: string;
   mcpConfig?: string;
   servers?: string[];
+  addDirs?: string[];
 }
 
 export function claudeArgs(r: ClaudeRun): string[] {
@@ -37,6 +38,7 @@ export function claudeArgs(r: ClaudeRun): string[] {
   for (const s of r.servers ?? []) tools.push(`mcp__${s}`);
   args.push("--allowedTools", tools.join(","));
   if (r.model) args.push("--model", r.model);
+  for (const d of r.addDirs ?? []) args.push("--add-dir", d);
   if (r.mcpConfig) args.push("--mcp-config", r.mcpConfig);
   return args;
 }

@@ -13,6 +13,7 @@ import { heartbeat, registerMachine, shouldWork, STUDIO_SLOTS } from "./machine"
 import { decide } from "./schedule";
 import { recordStats } from "./stats";
 import { Usage } from "./usage";
+import { isVaultTask, seedVault } from "./vault";
 
 const POLL_MS = 20_000;
 const HEARTBEAT_MS = 60_000;
@@ -332,7 +333,22 @@ export class Runner {
       const { data } = await db.from("games").select("*").eq("id", task.game_id).maybeSingle();
       game = data as Game | null;
     }
-    const cwd = game?.project_path || join(app.getPath("userData"), "games", task.game_id ?? "general");
+    // Vault work runs inside the vault. With no folder picked yet, start one in Documents.
+    const vaultJob = isVaultTask(task as Task);
+    if (vaultJob && !live.settings.vault_path) {
+      const vault_path = join(app.getPath("documents"), "RoSlop Vault");
+      live.settings = { ...live.settings, vault_path };
+      await db.from("settings").update({ vault_path }).eq("user_id", live.userId);
+    }
+    const vault = live.settings.vault_path;
+    if (vault) {
+      try {
+        seedVault(vault);
+      } catch (e) {
+        events.add(task.id, "error", `Couldn't set up the vault at ${vault}: ${(e as Error).message}`);
+      }
+    }
+    const cwd = vaultJob && vault ? vault : game?.project_path || join(app.getPath("userData"), "games", task.game_id ?? "general");
     mkdirSync(cwd, { recursive: true });
 
     const job = new Job(

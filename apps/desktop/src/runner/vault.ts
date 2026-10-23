@@ -1,5 +1,5 @@
-import type { AgentId } from "@roslop/core";
-import { readdirSync, readFileSync } from "node:fs";
+import type { AgentId, Task } from "@roslop/core";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const MAX_FILES = 3000;
@@ -39,6 +39,39 @@ export function noteAgents(text: string): string[] {
     else if (!/^\s/.test(line)) inList = false;
   }
   return agents.map(a => a.toLowerCase());
+}
+
+export const FOLDERS = ["Games", "Design", "References", "References/img", "Market", "Lessons"];
+
+export function isVaultTask(t: Pick<Task, "title" | "brief">): boolean {
+  return /\bvault\b|obsidian/i.test(`${t.title} ${t.brief}`);
+}
+
+// Folders and a Home note, so there's something to open in Obsidian before the crew writes anything.
+export function seedVault(vault: string) {
+  for (const f of FOLDERS) mkdirSync(join(vault, f), { recursive: true });
+  const home = join(vault, "Home.md");
+  if (!existsSync(home)) {
+    writeFileSync(home, `---
+for: [lead, architect, builder, balance, librarian, pulse]
+tags: [home]
+---
+
+# Home
+
+What the crew knows about making our Roblox games. Every note links back here.
+
+## Games
+
+## Design
+
+## References
+
+## Market
+
+## Lessons
+`);
+  }
 }
 
 export function notesFor(vault: string, agent: AgentId): string[] {
