@@ -159,6 +159,17 @@ export interface AppEntry {
   on: boolean;
 }
 
+export interface BlenderRules {
+  style: "low poly" | "stylized" | "toon" | "realistic" | "voxel";
+  max_tris: number;
+  texture: 256 | 512 | 1024;
+  single_material: boolean;
+  bake: boolean;
+  pivot_bottom: boolean;
+  collision: "box" | "hull" | "precise";
+  notes: string;
+}
+
 export interface Settings {
   user_id: string;
   provider: Provider;
@@ -172,6 +183,9 @@ export interface Settings {
   connectors: Record<string, boolean>;
   vault_path: string | null;
   studio_mcp: string | null;
+  blender: BlenderRules;
+  // What the worker saw in `claude mcp list` last time it checked. null = never checked.
+  mcp_found: string[] | null;
 }
 
 export interface Tables {

@@ -1,10 +1,11 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { app } from "electron";
-import { estimate, windowElapsed, type Game, type Machine, type RunnerStatus, type Settings, type Task } from "@roslop/core";
+import { estimate, serverFor, windowElapsed, type Game, type Machine, type RunnerStatus, type Settings, type Task } from "@roslop/core";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { allKeys } from "../keys";
 import { cliFound } from "./cli";
+import { listServers } from "./mcp";
 import { connect, fail, loadSettings, Tokens, withDefaults, type Auth } from "./db";
 import { Events } from "./events";
 import { Job, type StopReason } from "./job";
@@ -96,6 +97,7 @@ export class Runner {
         timers: [],
       };
       this.live = live;
+      void this.checkConnectors();
       live.timers.push(
         setInterval(() => this.tick(), POLL_MS),
         setInterval(() => void heartbeat(db, machine.id, live.settings.provider).catch(e => this.error(e)), HEARTBEAT_MS),
@@ -155,8 +157,29 @@ export class Runner {
     const before = live.settings.provider;
     live.settings = withDefaults(live.userId, row);
     if (live.settings.provider !== before) this.cli = await cliFound(live.settings.provider);
+    void this.checkConnectors();
     this.changed();
     this.soon();
+  }
+
+  // Connectors can be switched on any time. If Claude Code or Codex doesn't actually
+  // have that server, it gets switched back off so nobody waits on it.
+  private checkingFor = "";
+  private async checkConnectors() {
+    const live = this.live;
+    if (!live) return;
+    const key = JSON.stringify([live.settings.provider, live.settings.connectors]);
+    if (key === this.checkingFor) return;
+    this.checkingFor = key;
+    const found = await listServers(live.settings.provider);
+    if (!found || this.live !== live) return;
+    const connectors = { ...live.settings.connectors };
+    for (const [id, on] of Object.entries(connectors)) {
+      if (on && !serverFor(id, found)) connectors[id] = false;
+    }
+    this.checkingFor = JSON.stringify([live.settings.provider, connectors]);
+    live.settings = { ...live.settings, connectors, mcp_found: found };
+    await live.db.from("settings").update({ connectors, mcp_found: found }).eq("user_id", live.userId);
   }
 
   private soon() {

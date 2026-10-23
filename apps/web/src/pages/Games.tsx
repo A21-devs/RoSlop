@@ -2,16 +2,17 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { STAGES, type Game, type Stage } from "@roslop/core";
 import { addGame, publish } from "../data/actions";
-import { db, useSnap } from "../data/store";
+import { db, toast, useSnap } from "../data/store";
 import { Av, Empty, LineChart } from "../ui/bits";
 
-function AddGame({ done }: { done(): void }) {
+function AddGame({ done }: { done(id?: string): void }) {
   const [name, setName] = useState("");
   const [universe, setUniverse] = useState("");
   const [folder, setFolder] = useState("");
   const save = async () => {
-    await addGame({ name, universe_id: universe ? Number(universe) : null, project_path: folder || null, stage: "built" });
-    done();
+    const g = await addGame({ name: name.trim(), universe_id: universe ? Number(universe) : null, project_path: folder || null, stage: "built" });
+    toast(`Added ${g.name}.`);
+    done(g.id);
   };
   return (
     <div className="card pad col" style={{ gap: 12, maxWidth: 520, marginBottom: 20 }}>
@@ -24,7 +25,7 @@ function AddGame({ done }: { done(): void }) {
           {window.roslop && <button className="btn" onClick={async () => setFolder((await window.roslop!.pickFolder()) ?? folder)}>Pick</button>}
         </div>
       </label>
-      <div className="row"><button className="btn pri" disabled={!name.trim()} onClick={save}>Add it</button><button className="btn ghost" onClick={done}>Cancel</button></div>
+      <div className="row"><button className="btn pri" disabled={!name.trim()} onClick={save}>Add it</button><button className="btn ghost" onClick={() => done()}>Cancel</button></div>
     </div>
   );
 }
@@ -65,7 +66,7 @@ export function Games() {
         <div className="grow"><h1 className="page">Games</h1><p className="lede">Live numbers come straight from Roblox every few minutes while your worker is on.</p></div>
         <button className="btn" onClick={() => setAdding(true)}>Add a game</button>
       </div>
-      {adding && <AddGame done={() => setAdding(false)} />}
+      {adding && <AddGame done={id => { setAdding(false); if (id) setParams({ g: id }); }} />}
       {!g && !adding && <Empty>No games yet. Add one you already have, or approve a pitch and the crew starts a new one.</Empty>}
       {g && (
         <>

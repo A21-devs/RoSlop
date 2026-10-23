@@ -51,8 +51,19 @@ function useCheckIn() {
 }
 
 export function App() {
-  const { user, snap } = useData();
+  const { user, snap, problem, retry } = useData();
   useCheckIn();
+  if (user && problem) {
+    return (
+      <div className="login">
+        <div className="card col" style={{ gap: 12 }}>
+          <b>Can't load your stuff</b>
+          <div className="muted">{problem}</div>
+          <div className="row"><button className="btn pri" onClick={retry}>Try again</button><button className="btn ghost" onClick={() => db.signOut()}>Sign out</button></div>
+        </div>
+      </div>
+    );
+  }
   if (user === undefined || (user && !snap)) return <div className="login muted">Loading…</div>;
   if (!user) return <Login />;
   return (

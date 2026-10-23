@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { NavLink, useParams } from "react-router-dom";
-import { AGENTS, ago, CONNECTORS, KEYS, MODELS, pct, projected, SAVINGS, WINDOW_MIN, type AppEntry, type MachineRole, type Settings as S, type Tier } from "@roslop/core";
+import { AGENTS, ago, CONNECTORS, KEYS, MODELS, pct, projected, SAVINGS, serverFor, WINDOW_MIN, type AppEntry, type MachineRole, type Settings as S, type Tier } from "@roslop/core";
 import { resetDemo } from "../data/demo";
-import { db, useData, useSnap, useUsage } from "../data/store";
+import { db, toast, useData, useSnap, useUsage } from "../data/store";
 import { Av, Icon, Toggle } from "../ui/bits";
 
 const SECTIONS = [["usage", "Usage"], ["computers", "Computers and apps"], ["connectors", "Connectors"], ["keys", "Keys"], ["provider", "AI provider"], ["account", "Account"], ["look", "Look"]] as const;
@@ -105,7 +105,15 @@ function Computers() {
   const scan = async () => {
     const found = await window.roslop!.scanApps();
     const known = new Set(st.apps.map(a => a.path));
-    setApps([...st.apps, ...found.filter(a => !known.has(a.path))]);
+    const fresh = found.filter(a => !known.has(a.path));
+    if (fresh.length) await setApps([...st.apps, ...fresh]);
+    toast(fresh.length ? `Found ${fresh.map(a => a.name).join(", ")}. Switch on the ones the crew can use.` : found.length ? "Nothing new, you've got them all." : "Didn't find any of the usual apps. Use Add an app to point at one.");
+  };
+  const addApp = async () => {
+    const path = await window.roslop!.pickFile();
+    if (!path) return;
+    const name = path.split(/[\\/]/).pop()!.replace(/\.(exe|app)$/i, "");
+    await setApps([...st.apps, { name, path, use: "", agents: ["librarian"], on: true }]);
   };
   const role = (id: string, r: MachineRole) => db.update("machines", id, { role: r });
   return (
@@ -131,7 +139,7 @@ function Computers() {
         {!s.machines.length && <div className="muted" style={{ padding: "14px 0" }}>Open the desktop app and sign in. That computer shows up here.</div>}
       </div>
 
-      <div className="sec-h" style={{ marginTop: 24 }}><h3>Apps the crew can open</h3>{window.roslop && <button className="btn sm r" onClick={scan}>Scan this computer</button>}</div>
+      <div className="sec-h" style={{ marginTop: 24 }}><h3>Apps the crew can open</h3>{window.roslop && <span className="r row"><button className="btn sm" onClick={scan}>Scan this computer</button><button className="btn sm" onClick={addApp}>Add an app</button></span>}</div>
       <div className="card list" style={{ padding: "0 16px" }}>
         {st.apps.map((a, i) => (
           <div key={a.path} className="row" style={{ padding: "12px 0", gap: 12 }}>
@@ -148,16 +156,82 @@ function Computers() {
   );
 }
 
+const SETUP: Record<string, string> = {
+  figma: "claude mcp add --transport http figma https://mcp.figma.com/mcp",
+  blender: "claude mcp add blender -- uvx blender-mcp",
+};
+
+function BlenderRules() {
+  const r = useSnap().settings.blender;
+  const set = (patch: Partial<typeof r>) => save({ blender: { ...r, ...patch } });
+  return (
+    <div className="card pad col" style={{ marginTop: 14, gap: 12 }}>
+      <div><b>How Blender models should come out</b><div className="muted small">Every model the crew makes follows these, so they look like one game and stay light on phones.</div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+        <label className="field"><span>Style</span>
+          <select className="input" value={r.style} onChange={e => set({ style: e.target.value as typeof r.style })}>
+            {["low poly", "stylized", "toon", "realistic", "voxel"].map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </label>
+        <label className="field"><span>Max triangles per model</span>
+          <select className="input" value={r.max_tris} onChange={e => set({ max_tris: Number(e.target.value) })}>
+            {[500, 1500, 4000, 8000, 15000].map(v => <option key={v} value={v}>{v.toLocaleString()}</option>)}
+          </select>
+        </label>
+        <label className="field"><span>Texture size</span>
+          <select className="input" value={r.texture} onChange={e => set({ texture: Number(e.target.value) as typeof r.texture })}>
+            {[256, 512, 1024].map(v => <option key={v} value={v}>{v} x {v}</option>)}
+          </select>
+        </label>
+        <label className="field"><span>Collision in Studio</span>
+          <select className="input" value={r.collision} onChange={e => set({ collision: e.target.value as typeof r.collision })}>
+            <option value="box">Box, cheapest</option><option value="hull">Hull</option><option value="precise">Precise, only if needed</option>
+          </select>
+        </label>
+      </div>
+      <div className="list">
+        <Row title="One material per model" sub="Fewer draw calls. Extra colors go in a texture atlas."><Toggle on={r.single_material} onChange={v => set({ single_material: v })} /></Row>
+        <Row title="Bake detail into textures" sub="Instead of adding geometry"><Toggle on={r.bake} onChange={v => set({ bake: v })} /></Row>
+        <Row title="Pivot at the bottom center" sub="So models drop onto the ground cleanly in Studio"><Toggle on={r.pivot_bottom} onChange={v => set({ pivot_bottom: v })} /></Row>
+      </div>
+      <label className="field"><span>Anything else they should stick to</span>
+        <textarea className="textarea" style={{ minHeight: 60 }} value={r.notes} placeholder="No pure black, round every edge a bit, keep props under 6 studs tall…" onChange={e => set({ notes: e.target.value })} />
+      </label>
+    </div>
+  );
+}
+
 function Connectors() {
   const st = useSnap().settings;
+  const found = st.mcp_found;
+  const status = (id: string) => {
+    if (found === null) return <span className="pill">Not checked yet</span>;
+    return serverFor(id, found) ? <span className="pill ok">Found</span> : <span className="pill warn">Not set up</span>;
+  };
   return (
     <>
       <h1 className="page">Connectors</h1>
-      <p className="lede">These come from what's already connected in Claude Code or Codex on your worker. Turn one on and the crew can use it. Nothing new gets installed.</p>
+      <p className="lede">Switch on whatever you want the crew to use. Your worker checks what's actually set up in {st.provider === "claude" ? "Claude Code" : "Codex"}, and anything that isn't gets switched back off with a note on how to add it.</p>
       <div className="card list" style={{ marginTop: 18, padding: "0 16px" }}>
-        {CONNECTORS.map(c => <Row key={c.id} title={c.name} sub={c.use}><Toggle on={!!st.connectors[c.id]} onChange={v => save({ connectors: { ...st.connectors, [c.id]: v } })} /></Row>)}
+        {CONNECTORS.map(c => (
+          <div key={c.id} style={{ padding: "12px 0" }}>
+            <div className="row" style={{ gap: 12 }}>
+              <div className="grow"><div style={{ fontWeight: 500 }}>{c.name}</div><div className="muted small">{c.use}</div></div>
+              {status(c.id)}
+              <Toggle on={!!st.connectors[c.id]} onChange={v => save({ connectors: { ...st.connectors, [c.id]: v } })} />
+            </div>
+            {found !== null && !serverFor(c.id, found) && (
+              <div className="small muted" style={{ marginTop: 6 }}>
+                To add it, run this on your worker{SETUP[c.id] ? ":" : ", then switch it on again."}
+                {SETUP[c.id] ? <code className="mono" style={{ display: "block", marginTop: 4, padding: "6px 8px", background: "var(--raise)", borderRadius: 6, userSelect: "all" }}>{SETUP[c.id]}</code> : <span className="mono"> claude mcp add …</span>}
+                {c.id === "blender" && <div style={{ marginTop: 4 }}>You also need the Blender MCP add-on installed and turned on inside Blender.</div>}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
-      <p className="muted small" style={{ marginTop: 10 }}>Missing one? Connect it in Claude Code first (claude mcp add), then turn it on here.</p>
+      {found === null && <p className="muted small" style={{ marginTop: 10 }}>Open the desktop app on your worker and it checks these automatically.</p>}
+      <BlenderRules />
     </>
   );
 }

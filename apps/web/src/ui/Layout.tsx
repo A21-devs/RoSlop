@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AGENTS, pace, pct } from "@roslop/core";
-import { useData, useSnap, useUsage } from "../data/store";
+import { useData, useSnap, useToasts, useUsage } from "../data/store";
 import { Av, Icon, Logo, Ring, type IconName } from "./bits";
 
 const isMac = navigator.userAgent.includes("Mac");
@@ -39,7 +39,7 @@ function Sidebar() {
         {link("/team", "team", "Team")}
         {link("/tasks", "tasks", "Tasks", open)}
         {link("/review", "review", "Review", waiting)}
-        {link("/coach", "coach", "Prompt coach")}
+        {link("/coach", "coach", "Prompt engineering")}
       </nav>
       <div className="nav-h">Studio</div>
       <nav className="nav">
@@ -87,7 +87,7 @@ function Meter() {
 }
 
 const TITLES: Record<string, string> = {
-  "": "Home", lead: "Lead", team: "Team", tasks: "Tasks", review: "Review", coach: "Prompt coach",
+  "": "Home", lead: "Lead", team: "Team", tasks: "Tasks", review: "Review", coach: "Prompt engineering",
   games: "Games", pitches: "Pitches", market: "Market", library: "Library", vault: "Vault", settings: "Settings", more: "More",
 };
 
@@ -138,6 +138,15 @@ function Tabbar() {
   );
 }
 
+function Toasts() {
+  const list = useToasts();
+  return (
+    <div className="toasts">
+      {list.map(t => <div key={t.id} className={`toast ${t.bad ? "bad" : ""}`}>{t.text}</div>)}
+    </div>
+  );
+}
+
 export function Layout() {
   return (
     <div className={`app ${desktop && isMac ? "mac" : ""}`}>
@@ -147,6 +156,7 @@ export function Layout() {
         <Outlet />
       </main>
       <Tabbar />
+      <Toasts />
     </div>
   );
 }

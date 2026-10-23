@@ -70,6 +70,7 @@ export function withDefaults(userId: string, row: Partial<Settings> | null): Set
     savings: { ...base.savings, ...row.savings },
     apps: row.apps ?? [],
     connectors: row.connectors ?? {},
+    blender: { ...base.blender, ...row.blender },
   };
 }
 

@@ -25,14 +25,47 @@ export function connectCloud(url: string, key: string | null) {
 const cloud = cloudConfig();
 export const db: Db = cloud ? cloudDb(cloud.url, cloud.key) : demoDb();
 
+// Small notices at the bottom of the screen. Errors land here instead of vanishing.
+type Toast = { id: number; text: string; bad: boolean };
+const toastListeners = new Set<(t: Toast[]) => void>();
+let toasts: Toast[] = [];
+
+export function toast(text: string, bad = false) {
+  const t = { id: Date.now() + Math.random(), text, bad };
+  toasts = [...toasts.filter(x => x.text !== text), t].slice(-3);
+  toastListeners.forEach(l => l(toasts));
+  setTimeout(() => {
+    toasts = toasts.filter(x => x.id !== t.id);
+    toastListeners.forEach(l => l(toasts));
+  }, bad ? 9000 : 3500);
+}
+
+export function useToasts() {
+  const [list, setList] = useState(toasts);
+  useEffect(() => {
+    toastListeners.add(setList);
+    return () => {
+      toastListeners.delete(setList);
+    };
+  }, []);
+  return list;
+}
+
+addEventListener("unhandledrejection", e => {
+  const r = e.reason as { message?: string } | undefined;
+  toast(r?.message ?? "Something went wrong", true);
+});
+
 interface Ctx {
   user: User | null | undefined;
   snap: Snapshot | null;
+  problem: string | null;
+  retry(): void;
   game: string;
   setGame(id: string): void;
 }
 
-const DataCtx = createContext<Ctx>({ user: undefined, snap: null, game: "all", setGame() {} });
+const DataCtx = createContext<Ctx>({ user: undefined, snap: null, problem: null, retry() {}, game: "all", setGame() {} });
 
 function apply(s: Snapshot, c: Change): Snapshot {
   if (c.table === "settings") return { ...s, settings: { ...s.settings, ...c.row } };
@@ -46,6 +79,8 @@ function apply(s: Snapshot, c: Change): Snapshot {
 export function DataProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [game, setGame] = useState(() => localStorage.getItem("roslop-game") ?? "all");
 
   useEffect(() => db.onAuth(setUser), []);
@@ -59,22 +94,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
     let alive = true;
     db.load().then(s => {
       if (!alive) return;
+      setProblem(null);
       setSnap(s);
       off = db.subscribe(c => setSnap(prev => (prev ? apply(prev, c) : prev)));
-    });
+    }, e => alive && setProblem(e.message));
+
+    // Catch anything realtime missed while the app was asleep or in the background.
+    const resync = () => {
+      if (document.visibilityState !== "visible" || db.mode === "demo") return;
+      db.load().then(s => alive && setSnap(s), () => {});
+    };
+    const timer = setInterval(resync, 90000);
+    document.addEventListener("visibilitychange", resync);
     return () => {
       alive = false;
       off();
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", resync);
     };
-  }, [user?.id]);
+  }, [user?.id, attempt]);
 
   const value = useMemo(() => ({
-    user, snap, game,
+    user, snap, game, problem,
+    retry: () => setAttempt(a => a + 1),
     setGame(id: string) {
       localStorage.setItem("roslop-game", id);
       setGame(id);
     },
-  }), [user, snap, game]);
+  }), [user, snap, game, problem]);
 
   return <DataCtx.Provider value={value}>{children}</DataCtx.Provider>;
 }

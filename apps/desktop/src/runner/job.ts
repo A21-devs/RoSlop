@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { killTree, run } from "./cli";
 import { claudeArgs, codexArgs, mcpConfig } from "./commands";
+import { onServers } from "./mcp";
 import { fail } from "./db";
 import type { Events } from "./events";
 import { saveMarket } from "./market";
@@ -109,7 +110,7 @@ export class Job {
       writeFileSync(this.mcpFile, JSON.stringify(mcpConfig(settings.studio_mcp)));
     }
 
-    return run("claude", claudeArgs({ prompt, system, model, resume: session, mcpConfig: this.mcpFile ?? undefined }), { cwd: this.cwd, env });
+    return run("claude", claudeArgs({ prompt, system, model, resume: session, mcpConfig: this.mcpFile ?? undefined, servers: onServers(settings) }), { cwd: this.cwd, env });
   }
 
   private handle(ev: StreamEvent) {

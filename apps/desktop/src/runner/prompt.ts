@@ -1,4 +1,4 @@
-import type { Game, Settings, Task } from "@roslop/core";
+import { blenderBrief, type Game, type Settings, type Task } from "@roslop/core";
 import { PROMPTS, SHARED } from "../prompts";
 import { notesFor } from "./vault";
 
@@ -13,6 +13,11 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
 
   const connectors = Object.entries(settings.connectors).filter(([, on]) => on).map(([id]) => id);
   if (connectors.length) lines.push("", `Connected: ${connectors.join(", ")}`);
+
+  const blenderOn = settings.connectors.blender || settings.apps.some(a => a.on && /blender/i.test(a.name));
+  if (blenderOn && ["librarian", "scenic", "splash", "builder"].includes(task.agent)) {
+    lines.push("", "Rules for anything you make in Blender:", blenderBrief(settings.blender));
+  }
 
   if (keyNames.length) lines.push("", `Keys are in these env vars, never print them: ${keyNames.join(", ")}`);
 
