@@ -42,7 +42,7 @@ export function noteAgents(text: string): string[] {
   return agents.map(a => a.toLowerCase());
 }
 
-export const FOLDERS = ["Games", "Design", "References", "References/img", "Market", "Lessons"];
+export const FOLDERS = ["Games", "Game Types", "Design", "References", "References/img", "Market", "Lessons"];
 
 // A request can name its own vault with a "Vault folder: <path>" line in the brief.
 export function briefVault(brief: string): string | null {
@@ -68,6 +68,9 @@ tags: [home]
 What the crew knows about making our Roblox games. Every note links back here.
 
 ## Games
+
+## Game types
+[[Game Types]]
 
 ## Design
 

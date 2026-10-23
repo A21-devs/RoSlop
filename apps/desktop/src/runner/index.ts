@@ -382,7 +382,7 @@ export class Runner {
     if (vaultJob && vault && task.agent === "lead" && latestPull(vault)?.day !== new Date().toISOString().slice(0, 10)) {
       events.add(task.id, "note", "Pulling real numbers for hundreds of Roblox games first.");
       await this.pullGames(vault).then(
-        r => events.add(task.id, "note", `Got ${r.count} games. Charts note: ${r.charts}`),
+        r => events.add(task.id, "note", `Sorted ${r.count} games into ${r.types} type notes. Charts note: ${r.charts}`),
         e => events.add(task.id, "error", `Couldn't pull game data: ${(e as Error).message}`),
       );
     }

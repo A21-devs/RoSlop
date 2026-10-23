@@ -26,7 +26,7 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
     lines.push(
       "",
       `Obsidian vault: ${settings.vault_path}`,
-      "- Notes are plain .md files you write straight into it. Folders: Games, Design, References (images in References/img), Market, Lessons.",
+      "- Notes are plain .md files you write straight into it. Folders: Games (our own games only), Game Types, Design, References (images in References/img), Market, Lessons.",
       "- Start every note with frontmatter: `for: [agent ids that should read it]` and `tags: [...]`.",
       "- Link related notes with [[Note name]], and add each new note under its heading in Home.md.",
       "- References: search the web, keep the ones that are actually useful. One note each with the source link, what it shows and what we take from it. Download images with curl into References/img and embed them with ![[file.png]].",
@@ -42,9 +42,10 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
   if (pull) {
     lines.push(
       "",
-      `Real game data: ${pull.count} Roblox games pulled ${pull.day}, in ${pull.csv} (and the .json next to it), one note per game in References/Games, summary in Market/Charts ${pull.day}.md.`,
+      `Real game data: ${pull.count} Roblox games pulled ${pull.day}, in ${pull.csv} (and the .json next to it), one note per game type in "Game Types" (Tycoon, Tower Defense...) listing its games, an index at Game Types/Game Types.md, summary in Market/Charts ${pull.day}.md.`,
       "- Work from this data across many games: group them by genre, age, size and pattern, and back every claim with counts and named examples. Don't just study one big game.",
-      "- Numbers in the game notes are filled in already. Add what we take from a game under its \"What we take from it\" heading, and leave the data block alone.",
+      "- Never make a note for a single game. Games go inside the note for their type, pattern or genre, as rows, examples or short write-ups, linked to their Roblox page.",
+      "- Each type note has a data block that refreshes daily; leave it alone and write under \"What works in this type\" (genres: \"What works in this genre\"). New notes for patterns, mechanics and so on link to the types they show up in.",
       "- Read the CSV with a script (Bash and python or node) instead of opening hundreds of notes one by one.",
     );
   }

@@ -32,7 +32,7 @@ export interface DesktopBridge {
   setCliPath(provider: Provider, path: string | null): Promise<void>;
   scanApps(): Promise<AppEntry[]>;
   // Fetches numbers for hundreds of Roblox games and writes them into the vault.
-  pullGames(vault: string | null): Promise<{ count: number; day: string; charts: string; vault: string }>;
+  pullGames(vault: string | null): Promise<{ count: number; day: string; charts: string; types: number; vault: string }>;
   openPath(path: string): Promise<void>;
 }
 

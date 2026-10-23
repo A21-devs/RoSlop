@@ -6,11 +6,11 @@ import { Icon } from "./bits";
 const IDEAS: { label: string; text: string; games?: string }[] = [
   {
     label: "Study the charts",
-    text: "Go through the whole game data pull, hundreds of games, not just the famous ones. Group them by genre, age and size and find the patterns: which loops, titles, server sizes and update habits go with lots of players. Write a Design note per pattern with the numbers and 5 to 10 named examples each, and fill in \"What we take from it\" on the 30 games that stand out most.",
+    text: "Go through the whole game data pull, hundreds of games, not just the famous ones. Group them by genre, age and size and find the patterns: which loops, titles, server sizes and update habits go with lots of players. Write a Design note per pattern with the numbers and 5 to 10 named examples each, and write \"What works in this type\" in every type note in Game Types, covering the standout games inside it. No notes for single games.",
   },
   {
     label: "Study AI slop games",
-    text: "Use the quick game signs in the data pull to find the low effort, often AI-made games that still get real players, there should be dozens. Check them on Roblox: UI, thumbnails, icons, titles, the loop and the monetization. Work out why they get players anyway, what's cheap to copy and what makes them feel cheap. Write a Design note on what to steal and what to avoid, with counts and examples, and fill in \"What we take from it\" on the 20 biggest.",
+    text: "Use the quick game signs in the data pull to find the low effort, often AI-made games that still get real players, there should be dozens. Check them on Roblox: UI, thumbnails, icons, titles, the loop and the monetization. Work out why they get players anyway, what's cheap to copy and what makes them feel cheap. Write a Design note on what to steal and what to avoid, with counts and examples, and add what you find to the type notes they belong to. No notes for single games.",
   },
   {
     label: "UI teardown",
@@ -71,7 +71,7 @@ export function VaultAsk() {
     try {
       const r = await window.roslop!.pullGames(vault || null);
       if (!main) await db.saveSettings({ vault_path: r.vault });
-      toast(`Pulled ${r.count.toLocaleString()} games into ${r.vault}. Open Market/Charts ${r.day} in Obsidian.`);
+      toast(`Sorted ${r.count.toLocaleString()} games into ${r.types} type notes in ${r.vault}. Start at Game Types in Obsidian.`);
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), true);
     } finally {
@@ -118,7 +118,7 @@ export function VaultAsk() {
         <button className="btn pri" disabled={!ask.trim() || busy} onClick={send}><Icon name="lead" size={14} />Send to the crew</button>
         {window.roslop && <button className="btn" disabled={pulling} onClick={pull}>{pulling ? "Pulling games…" : "Pull game data now"}</button>}
       </div>
-      <div className="dim small">Game data is real numbers for 1,000+ Roblox games from the charts and searches, written into the vault. It runs by itself before vault work once a day, takes a couple of minutes and uses none of your Claude usage.</div>
+      <div className="dim small">Game data is real numbers for 1,000+ Roblox games from the charts and searches, sorted into one note per type of game (Tycoon, Tower Defense...) with the games listed inside. It runs by itself before vault work once a day, takes a couple of minutes and uses none of your Claude usage.</div>
     </div>
   );
 }
