@@ -142,6 +142,12 @@ function ThisComputer() {
           {line(st.provider === "claude" ? "Claude Code" : "Codex", st.cli_detail ?? (st.cli_found ? "Found" : "Not checked yet"), st.cli_found)}
           {line("Working on", st.working.length ? st.working.join(", ") : "Nothing right now")}
           {st.note && line("Why it's waiting", st.note)}
+          {!st.cli_found && st.provider === "codex" && (
+            <div className="small muted" style={{ padding: "10px 0", lineHeight: 1.6 }}>
+              RoSlop looks for the Codex that comes inside the Codex app, so you don't need the terminal version. Install the Codex app, open it once and sign in, then hit Check again.
+              If it still isn't found, hit Point at the file and pick <code>codex.exe</code> from inside the Codex app's folder (usually under <code>AppData\Local\Programs</code>, in a <code>resources</code> folder).
+            </div>
+          )}
           {!st.cli_found && st.provider === "claude" && (
             <div className="small muted" style={{ padding: "10px 0", lineHeight: 1.6 }}>
               The Claude desktop app isn't the same as Claude Code's command line, and RoSlop needs the command line.

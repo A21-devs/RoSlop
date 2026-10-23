@@ -15,7 +15,7 @@ export const TEMPLATES: Template[] = [
   { group: "Fix", title: "Saves go missing", body: g => `Some players in ${g} lose [what] when they [leave / rejoin / switch servers]. Make saving safe and tell me how many people it could have hit.` },
 
   { group: "First minutes", title: "First 5 minutes", body: g => `New players in ${g} [where they quit or get lost]. By minute 5 they should have [goal] and know what to chase next. No walls of text.` },
-  { group: "First minutes", title: "Tutorial nobody reads", body: g => `Replace the ${g} tutorial with something people learn by doing. Kid Tester should get through it without reading anything.` },
+  { group: "First minutes", title: "Tutorial nobody reads", body: g => `Replace the ${g} tutorial with something people learn by doing. Clueless Tester should get through it without reading anything.` },
   { group: "First minutes", title: "Make the goal obvious", body: g => `New players in ${g} don't know what to do after [moment]. Make the next goal obvious with the world and UI, not popups.` },
 
   { group: "Gameplay", title: "A boss fight", body: g => `Add a boss to [zone] in ${g}. It's for [who]. Hard should come from [attacks you dodge, phases, adds], not a huge HP bar. Done when Playtest beats it in 3 to 6 tries with [squad].` },
@@ -58,7 +58,7 @@ export interface Suggestion {
 
 const NEXT: Partial<Record<Game["stage"], (g: string) => [string, string]>> = {
   pitched: g => ["Plan it", `Write the game plan for ${g}: the core loop, the first 5 minutes, what makes money, and who builds what. Keep it to what the first playable needs.`],
-  designed: g => ["Build the first playable", `Build the first playable version of ${g} from the plan. Just the core loop, rough is fine. Done when Kid Tester can play 5 minutes without getting stuck.`],
+  designed: g => ["Build the first playable", `Build the first playable version of ${g} from the plan. Just the core loop, rough is fine. Done when Clueless Tester can play 5 minutes without getting stuck.`],
   assets: g => ["Start building", `Everything's ready for ${g}. Build the core loop with what's in the library.`],
   built: g => ["Balance pass", `Run a balance pass on ${g}. Simulate the first hour and tell me where people would stall or blow through things.`],
   balanced: g => ["Art and thumbnail", `${g} plays well. Get the thumbnail, icon and store art done so it's ready to publish.`],

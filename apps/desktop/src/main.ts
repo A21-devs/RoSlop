@@ -74,6 +74,11 @@ function handlers() {
   ipcMain.handle("roslop:getKey", (_, id: string) => getKey(id));
   ipcMain.handle("roslop:setKey", (_, id: string, value: string | null) => setKey(id, value));
   ipcMain.handle("roslop:scanApps", () => scanApps());
+  ipcMain.handle("roslop:pullGames", async (_, vault: string | null) => {
+    const path = vault || join(app.getPath("documents"), "RoSlop Vault");
+    const r = await runner.pullGames(path);
+    return { ...r, vault: path };
+  });
   ipcMain.handle("roslop:openPath", async (_, path: string) => {
     const error = await shell.openPath(path);
     if (error) throw new Error(error);

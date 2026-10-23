@@ -216,7 +216,8 @@ export class Job {
     const text = (this.failedResult && this.finalText) || tail || `Stopped with exit code ${code}`;
     // The desktop Claude app and the command line keep separate sign-ins.
     if (/log ?in|api key|authenticat|credential|unauthori[sz]ed/i.test(text)) {
-      return `${text}\n\nThe command line isn't signed in on this computer. Open Command Prompt, run claude, sign in, then retry the task.`;
+      const fix = this.provider === "codex" ? "Open the Codex app and sign in" : "Open Command Prompt, run claude and sign in";
+      return `${text}\n\nIt isn't signed in on this computer. ${fix}, then retry the task.`;
     }
     return text;
   }

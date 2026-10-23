@@ -92,6 +92,20 @@ function studioFacts(s: Snapshot): string {
   return out.join("\n");
 }
 
+// Work on one vault: add a kind of note, study some games, update or tidy what's there.
+export function vaultRequest(s: Snapshot, o: { vault: string | null; ask: string; games: string; game_id: string | null }) {
+  const ask = o.ask.trim();
+  const brief = `${ask}${o.games.trim() ? `\n\nGames to look at: ${o.games.trim()}` : ""}
+
+This is vault work: the crew writes or updates .md notes in the vault, it's not a chat answer.
+Plan 2 to 6 tasks, each naming the exact notes to write or update. Read Home.md and what's already in the vault first, and update notes instead of making near copies.
+For studying games, get real material: find them on Roblox and the web, save screenshots into References/img, and note the numbers (players, likes, visits) with where they came from.
+${o.vault ? `\nVault folder: ${o.vault}` : ""}
+What we have so far:
+${studioFacts(s)}`;
+  return newTask(s, "lead", `Vault: ${ask.split("\n")[0]}`, brief, o.game_id);
+}
+
 export function buildVault(s: Snapshot, game_id: string | null = null) {
   const brief = `Build our Obsidian vault for real: the crew writes the notes as files, this isn't a summary.
 

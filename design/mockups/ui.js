@@ -58,7 +58,7 @@ const AG = {
   scenic: ["Scenic", "SC", "#6fd08c"],
   librarian: ["Librarian", "LB", "#b49cff"],
   balance: ["Balance", "BA", "#4fd1c5"],
-  kid: ["Kid Tester", "KT", "#ffd84d"],
+  kid: ["Clueless Tester", "CT", "#ffd84d"],
   playtest: ["Playtest", "PT", "#ff9b4a"],
   splash: ["Splash", "SP", "#e57bff"],
   merchant: ["Merchant", "ME", "#e8c46a"],
@@ -456,7 +456,7 @@ function games() {
       <div class="card" style="box-shadow:none;padding:10px;background:var(--raise)">
         ${[["Ice bridge", 61], ["Frozza fight", 22], ["Shop popup", 9], ["Other", 8]].map(([l, v]) => `<div style="margin:4px 0"><div class="row" style="font-size:12px"><span class="grow">${l}</span><span class="mono muted">${v}%</span></div><div class="bar" style="margin-top:4px"><i style="width:${v}%;background:var(--bad)"></i></div></div>`).join("")}
       </div>
-      <button class="btn pri" style="justify-content:center">Have Kid Tester play it</button>
+      <button class="btn pri" style="justify-content:center">Have Clueless Tester play it</button>
       <button class="btn ghost" style="justify-content:center">Show me the clips</button>
     </div>
     <div class="card" style="padding:14px 16px"><div class="sec-h"><h3>First minute</h3><span class="c">new players</span><span class="r"><b style="color:var(--warn);font-weight:600">13%</b> leave in 60s</span></div>
@@ -624,7 +624,7 @@ function playtest() {
   return `
   <div class="row" style="align-items:flex-end;margin-bottom:18px">
     <div class="grow"><div class="row" style="gap:10px"><h1 class="page">Playtest run #14</h1><span class="pill">Dig Up a Dino</span></div>
-    <p class="lede" style="margin-top:4px">Kid Tester and Playtest played it fresh on phone and PC. Two places people will quit.</p></div>
+    <p class="lede" style="margin-top:4px">Clueless Tester and Playtest played it fresh on phone and PC. Two places people will quit.</p></div>
     <button class="btn">${ic("reload", "width:14px;height:14px")}Run again</button><button class="btn pri">Send both fixes to Builder</button>
   </div>
   <div style="display:grid;grid-template-columns:1fr 360px;gap:20px">
@@ -725,7 +725,7 @@ function mLead() {
       <div style="margin-top:8px">${task("kid", "Play Frostpeak fresh, note every death")}${task("balance", "Find the level where Frozza feels fair")}${task("builder", "Add a checkpoint after the bridge")}${task("frame", "Warn people if they're under level 12")}</div>
       <div class="row" style="gap:6px;margin-top:8px"><button class="btn sm pri" style="flex:1;justify-content:center">Start all 4</button><button class="btn sm" style="flex:1;justify-content:center">Change it</button></div>`)}
     ${msg(true, "start them. skip the warning popup, people hate popups")}<div class="mono dim" style="text-align:right;margin-top:-6px">sent to Sam's PC</div>
-    ${msg(false, "Done, dropped Frame's popup. Kid Tester is opening Studio 3 now. I'll ping you when there's a clip.")}
+    ${msg(false, "Done, dropped Frame's popup. Clueless Tester is opening Studio 3 now. I'll ping you when there's a clip.")}
   </div>
   <div style="padding:10px 14px 30px;border-top:1px solid var(--line)"><div class="row card" style="padding:8px 8px 8px 14px;border-radius:99px;gap:8px;color:var(--dim)">${ic("plus")}<span class="grow">Message the Lead</span><span class="mono" style="font-size:10px">runs on PC</span><span style="width:30px;height:30px;border-radius:99px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center">${ic("up", "width:16px;height:16px")}</span></div></div>`;
 }

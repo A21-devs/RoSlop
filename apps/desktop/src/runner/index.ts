@@ -13,7 +13,8 @@ import { heartbeat, registerMachine, shouldWork, STUDIO_SLOTS } from "./machine"
 import { decide } from "./schedule";
 import { recordStats } from "./stats";
 import { Usage } from "./usage";
-import { isVaultTask, seedVault } from "./vault";
+import { briefVault, isVaultTask, seedVault } from "./vault";
+import { latestPull, pullGames, writeGames, type PullResult } from "./gamedata";
 
 const POLL_MS = 20_000;
 const HEARTBEAT_MS = 60_000;
@@ -217,6 +218,30 @@ export class Runner {
       });
   }
 
+  // Real numbers for hundreds of games, written into the vault. Two callers at once share one pull.
+  private pulling: Promise<PullResult> | null = null;
+  pullGames(vault: string): Promise<PullResult> {
+    this.pulling ??= (async () => {
+      const before = this.note;
+      try {
+        const rows = await pullGames({ onProgress: p => this.say(`Pulling game data from Roblox. ${p}.`) });
+        if (!rows.length) throw new Error("Roblox didn't send any games back. Check the internet and try again.");
+        seedVault(vault);
+        const result = writeGames(vault, rows);
+        const live = this.live;
+        if (live) {
+          const items = rows.slice(0, 100).map(g => ({ universe_id: g.universe_id, name: g.name, genre: g.genre, playing: g.playing, likes: g.up }));
+          await live.db.from("market_snapshots").insert({ user_id: live.userId, source: "roblox", sort: "charts and searches", items });
+        }
+        return result;
+      } finally {
+        this.pulling = null;
+        this.say(before);
+      }
+    })();
+    return this.pulling;
+  }
+
   private say(note: string | null) {
     if (note === this.note) return;
     this.note = note;
@@ -236,11 +261,11 @@ export class Runner {
     }
     if (!this.cli) {
       const install = live.settings.provider === "codex"
-        ? "npm install -g @openai/codex, then run codex login"
+        ? "install the Codex app and sign in (RoSlop uses the copy inside it), or point at codex.exe in Settings, Computers and apps"
         : process.platform === "win32"
           ? "open PowerShell and run irm https://claude.ai/install.ps1 | iex, then run claude once to sign in"
           : "curl -fsSL https://claude.ai/install.sh | bash, then run claude once to sign in";
-      return this.say(`${name} isn't working on this computer (${this.cliDetail ?? "not checked"}). If it's not installed, in a terminal: ${install}. Then hit Check again.`);
+      return this.say(`${name} isn't working on this computer (${this.cliDetail ?? "not checked"}). If it's not installed: ${install}. Then hit Check again.`);
     }
 
     const { data: machines } = await db.from("machines").select("*");
@@ -335,12 +360,13 @@ export class Runner {
     }
     // Vault work runs inside the vault. With no folder picked yet, start one in Documents.
     const vaultJob = isVaultTask(task as Task);
-    if (vaultJob && !live.settings.vault_path) {
+    const named = briefVault(task.brief);
+    if (vaultJob && !named && !live.settings.vault_path) {
       const vault_path = join(app.getPath("documents"), "RoSlop Vault");
       live.settings = { ...live.settings, vault_path };
       await db.from("settings").update({ vault_path }).eq("user_id", live.userId);
     }
-    const vault = live.settings.vault_path;
+    const vault = named ?? live.settings.vault_path;
     if (vault) {
       try {
         seedVault(vault);
@@ -348,11 +374,19 @@ export class Runner {
         events.add(task.id, "error", `Couldn't set up the vault at ${vault}: ${(e as Error).message}`);
       }
     }
+    // Vault work runs on real numbers, so fetch today's if the vault doesn't have them yet.
+    if (vaultJob && vault && task.agent === "lead" && latestPull(vault)?.day !== new Date().toISOString().slice(0, 10)) {
+      events.add(task.id, "note", "Pulling real numbers for hundreds of Roblox games first.");
+      await this.pullGames(vault).then(
+        r => events.add(task.id, "note", `Got ${r.count} games. Charts note: ${r.charts}`),
+        e => events.add(task.id, "error", `Couldn't pull game data: ${(e as Error).message}`),
+      );
+    }
     const cwd = vaultJob && vault ? vault : game?.project_path || join(app.getPath("userData"), "games", task.game_id ?? "general");
     mkdirSync(cwd, { recursive: true });
 
     const job = new Job(
-      { db, userId: live.userId, settings: live.settings, events, usage: live.usage, keys: allKeys(), history },
+      { db, userId: live.userId, settings: { ...live.settings, vault_path: vault }, events, usage: live.usage, keys: allKeys(), history },
       claimed as Task,
       game,
       cwd,

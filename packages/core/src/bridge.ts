@@ -31,6 +31,8 @@ export interface DesktopBridge {
   // Point at the CLI by hand when it isn't on PATH. null goes back to looking for it.
   setCliPath(provider: Provider, path: string | null): Promise<void>;
   scanApps(): Promise<AppEntry[]>;
+  // Fetches numbers for hundreds of Roblox games and writes them into the vault.
+  pullGames(vault: string | null): Promise<{ count: number; day: string; charts: string; vault: string }>;
   openPath(path: string): Promise<void>;
 }
 
