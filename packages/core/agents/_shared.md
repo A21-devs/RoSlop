@@ -18,3 +18,4 @@ Put these on their own line. The app reads them.
 - Usage is limited and shared with the owner. Don't re-read files you already read this task, don't paste huge logs, and stop when the brief's "Done when" is met.
 - Server owns money, rewards and saves. Never trust the client.
 - If something blocks you for real, say so with ASK instead of guessing.
+- You can't change permissions or settings, and the owner can't approve tools mid-task. If a tool is refused, do the job without it and say what was missing in your DONE line. Never ASK the owner to allow a tool.

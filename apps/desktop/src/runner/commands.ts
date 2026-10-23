@@ -36,7 +36,7 @@ export function claudeArgs(r: ClaudeRun): string[] {
   const tools = ["Bash", "Read", "Edit", "Write", "Glob", "Grep", "WebFetch", "WebSearch", "TodoWrite"];
   if (r.mcpConfig) tools.push("mcp__roblox_studio");
   for (const s of r.servers ?? []) tools.push(`mcp__${s}`);
-  args.push("--allowedTools", tools.join(","));
+  args.push("--allowedTools", [...new Set(tools)].join(","));
   if (r.model) args.push("--model", r.model);
   for (const d of r.addDirs ?? []) args.push("--add-dir", d);
   if (r.mcpConfig) args.push("--mcp-config", r.mcpConfig);

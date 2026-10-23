@@ -109,18 +109,21 @@ ${studioFacts(s)}`;
 export function buildVault(s: Snapshot, game_id: string | null = null) {
   const brief = `Build our Obsidian vault for real: the crew writes the notes as files, this isn't a summary.
 
-Plan 5 to 8 tasks, each one writing specific notes. Name the exact note files in every brief. Cover:
-- Games: one note per game with what it is, the core loop, where it's at and what's next.
-- Design: what we've learned works, from the Review calls below. Approved things become rules, sent back things become don'ts.
-- References: Pulse and Scenic search the web for reference games, UI, art style and systems that fit our games. One note each with the link, screenshots saved into References/img, and what we take from it.
-- Market: Pulse writes what's on the charts and why, with the numbers.
-- Agent notes: short how-we-do-it notes tagged for the agents that need them (balance, builder, frame, merchant...).
-Every note needs \`for:\` frontmatter naming the agents that should read it, [[links]] to related notes, and a line in Home.md.
-Give the Librarian the last task, after the others: tidy names, fix broken links and fill in Home.md.
+Target: at least 200 written notes, not counting the per-game data notes in References/Games. Plan 10 to 15 tasks and give each one a note count, so the counts add up to 200 or more. Name the folders and the kind of notes in every brief. Roughly:
+- Games: a note per game of ours, with the core loop, where it's at and what's next.
+- Genres (about 20): one note per genre from the data pull, with player totals, what the top games share and the gaps.
+- Game breakdowns (about 80): fill in "What we take from it" on the games that stand out, from the biggest down to small quick games. Spread it across genres.
+- Patterns (about 40): one note per mechanic, loop, UI habit or monetization trick that shows up across many games, with counts and 5 to 10 named examples each.
+- AI slop and quick games (about 20): what the quick game signs turn up, what's cheap to copy and what makes them feel cheap.
+- References (about 20): Pulse and Scenic search the web for UI, art style and systems that fit our games, screenshots saved into References/img.
+- Design rules (about 15): approved things from Review become rules, sent back things become don'ts.
+- Agent notes (about 15): short how-we-do-it notes tagged for the agents that need them.
+Every note needs \`for:\` frontmatter naming the agents that should read it, [[links]] to related notes, and a line in Home.md. Short notes are fine, empty or placeholder ones aren't. Agents should write notes in batches with a script where it helps, so it doesn't cost a full run per note.
+Give the Librarian the last task, after the others: tidy names, fix broken links, fill in Home.md, and count the written notes. If it's under 200, say how many are missing in the DONE line.
 
 What we have so far:
 ${studioFacts(s)}
 
-Keep the whole thing to about 15% of a usage window.`;
+It's fine if this takes more than one usage window. The pacing spreads it out.`;
   return newTask(s, "lead", "Start the vault", brief, game_id, { priority: "normal" });
 }
