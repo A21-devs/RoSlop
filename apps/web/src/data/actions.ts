@@ -36,6 +36,10 @@ export async function answer(task: Task, choice: string) {
   await db.update("tasks", task.id, { ask: { ...task.ask!, answer: choice }, status: "queued" });
 }
 
+// None of the options: the agent drops that part and carries on, or stops if it can't.
+export const reject = (task: Task) =>
+  answer(task, "Rejected, none of these. Don't do that part. Carry on with the rest of the task if it still makes sense, otherwise stop, and say what you skipped in your DONE line.");
+
 export async function decide(s: Snapshot, proof: Proof, verdict: Verdict, note: string) {
   await db.update("proofs", proof.id, { verdict, feedback: note || null, decided_at: new Date().toISOString() });
   if (verdict === "changes") {

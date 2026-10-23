@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AGENT, ago, pct, type Task, type TaskStatus } from "@roslop/core";
-import { answer, bump, drop, pause, resume } from "../data/actions";
+import { answer, bump, drop, pause, reject, resume } from "../data/actions";
 import { useGameFilter, useSnap } from "../data/store";
 import { Av, Icon, Seg, agentName } from "../ui/bits";
 
@@ -37,7 +37,7 @@ function Detail({ t }: { t: Task }) {
         {t.ask && t.status === "needs_you" && (
           <div className="card flat pad" style={{ marginBottom: 12, background: "var(--raise)" }}>
             <div style={{ marginBottom: 10, whiteSpace: "pre-wrap" }}>{t.ask.question}</div>
-            <div className="row wrap">{(t.ask.options ?? []).map((o, i) => <button key={o} className={`btn sm ${i ? "" : "pri"}`} onClick={() => answer(t, o)}>{o}</button>)}</div>
+            <div className="row wrap">{(t.ask.options ?? []).map((o, i) => <button key={o} className={`btn sm ${i ? "" : "pri"}`} onClick={() => answer(t, o)}>{o}</button>)}<button className="btn sm danger" onClick={() => reject(t)}>Reject</button></div>
           </div>
         )}
         {events.map(e => (

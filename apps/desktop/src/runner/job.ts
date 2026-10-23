@@ -15,6 +15,7 @@ import { savePlan } from "./plan";
 import { keyEnvName, systemPrompt } from "./prompt";
 import { uploadProof } from "./proofs";
 import { sessions } from "./store";
+import { isVaultTask } from "./vault";
 import { claudeParser, codexParser, type Parser, type StreamEvent } from "./stream";
 import type { Usage } from "./usage";
 
@@ -182,7 +183,12 @@ export class Job {
     };
 
     try {
-      if (this.stopped === "ask") {
+      if (this.stopped === "ask" && this.ask && (this.answered || isVaultTask(task) || this.deps.settings.savings.no_questions)) {
+        // Already asked once on this task, or it's vault work: take the agent's own first pick and keep going.
+        const pick = this.ask.options[0] ?? "Use your best judgement";
+        events.add(task.id, "note", `Asked "${this.ask.question}" and went with: ${pick}`);
+        await update({ status: "queued", ask: { ...this.ask, answer: `${pick} (picked automatically, keep going without asking again)` }, used });
+      } else if (this.stopped === "ask") {
         await update({ status: "needs_you", ask: this.ask, used });
       } else if (this.stopped === "shutdown") {
         await update({ used, status: "queued" }, true);

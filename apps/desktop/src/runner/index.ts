@@ -316,6 +316,10 @@ export class Runner {
 
     const running = open.filter(t => t.status === "working").length + plan.start.length;
     if (running) return this.say(null);
+    // Held back by pace on a stale reading? Check the real numbers before making anyone wait.
+    if (plan.wait !== undefined && live.settings.provider === "claude" && live.usage.stale) {
+      void live.usage.probe().then(() => this.soon());
+    }
     const blockedByParent = waiting.every(t => t.parent_id && !doneParents.has(t.parent_id));
     const left = Math.max(1, Math.ceil(WINDOW_MIN - windowElapsed(window.started_at)));
     const when = plan.wait === null

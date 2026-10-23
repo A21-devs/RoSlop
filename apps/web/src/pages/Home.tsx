@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AGENT, ago, pct, projected, type Task } from "@roslop/core";
-import { answer, askLead } from "../data/actions";
+import { answer, askLead, reject } from "../data/actions";
 import { useData, useGameFilter, useSnap, useUsage } from "../data/store";
 import { Av, Icon, Media, Spark, agentName } from "../ui/bits";
 
@@ -27,6 +27,7 @@ function AskCard({ t }: { t: Task }) {
         {(t.ask?.options ?? []).map((o, i) => (
           <button key={o} className={`btn sm ${i === 0 ? "pri" : ""}`} onClick={() => answer(t, o)}>{o}</button>
         ))}
+        <button className="btn sm danger" onClick={() => reject(t)}>Reject</button>
         <Link className="btn sm ghost" to={`/tasks?open=${t.id}`}>Details</Link>
       </div>
     </div>

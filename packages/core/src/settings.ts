@@ -6,6 +6,7 @@ export const SAVINGS = [
   { id: "tagged_notes", name: "Only the notes they need", what: "Each agent loads the vault pages tagged for it", cut: 0.09 },
   { id: "small_shots", name: "Smaller screenshots", what: "Shrunk to what's readable before they're sent", cut: 0.06 },
   { id: "light_first", name: "Try light first", what: "Simple retries go to a lighter model before a heavy one", cut: 0.04 },
+  { id: "no_questions", name: "Don't stop to ask", what: "Agents go with their own first pick instead of waiting on you", cut: 0.03 },
 ] as const;
 
 export const CONNECTORS = [
@@ -64,7 +65,7 @@ export function defaultSettings(user_id: string): Settings {
     weekly_spare: 0.15,
     // A guess to start from. The desktop app tightens it once it sees real limits.
     window_tokens: 4_000_000,
-    savings: Object.fromEntries(SAVINGS.map(s => [s.id, s.id !== "light_first"])),
+    savings: Object.fromEntries(SAVINGS.map(s => [s.id, s.id !== "light_first" && s.id !== "no_questions"])),
     apps: [],
     connectors: {},
     vault_path: null,

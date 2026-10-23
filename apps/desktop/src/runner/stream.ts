@@ -43,6 +43,17 @@ function codexUsage(u: Json | undefined): number {
 const LIMIT_KEYS = ["utilization", "used_percent", "used_percentage", "percent_used", "usage"];
 
 // Looks for something like { rateLimitType: "five_hour", utilization: 0.42 } anywhere in the line.
+// Claude Code reports the account's real windows like
+// { rate_limit_info: { unifiedWindows: { five_hour: { utilization: 0.03, resetsAt: 1792794600 } } } }.
+function fiveHour(o: Json): { used: number | null; resets: number | null } | null {
+  const w = (o.rate_limit_info as Json | undefined)?.unifiedWindows as Json | undefined;
+  const five = w?.five_hour as Json | undefined;
+  if (!five) return null;
+  const u = typeof five.utilization === "number" ? (five.utilization > 1 ? five.utilization / 100 : five.utilization) : null;
+  const r = typeof five.resetsAt === "number" ? (five.resetsAt < 1e12 ? five.resetsAt * 1000 : five.resetsAt) : null;
+  return { used: u, resets: r };
+}
+
 // When the five hour window resets, as ms since epoch.
 function findReset(v: unknown, depth = 0): number | null {
   if (!v || typeof v !== "object" || depth > 4) return null;
@@ -108,8 +119,9 @@ export function claudeParser(): Parser {
         resultTokens = claudeUsage(o.usage);
         out.push({ kind: "result", text: typeof o.result === "string" ? o.result : "", error: !!o.is_error || (!!o.subtype && o.subtype !== "success") });
       } else if (typeof o.type === "string" && o.type.includes("rate_limit")) {
-        const used = findLimit(o);
-        const resets = findReset(o);
+        const real = fiveHour(o);
+        const used = real ? real.used : findLimit(o);
+        const resets = real ? real.resets : findReset(o);
         if (used !== null || resets !== null) out.push({ kind: "limit", used, resets });
       }
       return out;

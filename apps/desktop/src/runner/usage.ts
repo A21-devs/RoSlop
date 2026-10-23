@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WINDOW_MIN, windowExpired, type UsageWindow } from "@roslop/core";
+import { homedir } from "node:os";
+import { killTree, run } from "./cli";
 import { fail } from "./db";
+import { claudeParser } from "./stream";
 
 const RECENT_MIN = 15;
 
@@ -38,6 +41,8 @@ export class Usage {
   }
 
   add(tokens: number, fraction: number) {
+    // With a real reading in the last half hour, our token guess would only skew it.
+    if (Date.now() - this.measuredAt < 30 * 60_000) fraction = 0;
     if (tokens <= 0 && fraction <= 0) return Promise.resolve();
     return this.current().then(w =>
       this.serial(async () => {
@@ -50,14 +55,52 @@ export class Usage {
     );
   }
 
-  // The CLI told us how much of the window is gone and when it resets. Its numbers win over
-  // ours, so time you spent in Claude elsewhere counts and pacing follows the real window.
+  get stale() {
+    return Date.now() - this.measuredAt > 15 * 60_000;
+  }
+
+  // A one line Haiku reply, only to read the real numbers when pacing is holding work back
+  // on an old reading. At most every 15 minutes.
+  private probedAt = 0;
+  probe(): Promise<void> {
+    if (Date.now() - this.probedAt < 15 * 60_000) return Promise.resolve();
+    this.probedAt = Date.now();
+    return new Promise(done => {
+      let child: ReturnType<typeof run>;
+      try {
+        child = run("claude", ["-p", "Reply with just: ok", "--output-format", "stream-json", "--verbose", "--model", "haiku", "--max-turns", "1"], { cwd: homedir() });
+      } catch {
+        return done();
+      }
+      const parser = claudeParser();
+      let buf = "";
+      child.stdout?.on("data", d => {
+        buf += d;
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) for (const ev of parser.read(line)) if (ev.kind === "limit") void this.raise(ev.used, ev.resets).catch(() => {});
+      });
+      const timer = setTimeout(() => killTree(child), 60_000);
+      child.on("error", () => done());
+      child.on("exit", () => {
+        clearTimeout(timer);
+        done();
+      });
+    });
+  }
+
+  // The CLI told us how much of the account's window is really gone and when it resets.
+  // That replaces our own estimate, up or down, and counts use outside RoSlop too.
+  private measuredAt = 0;
   raise(used: number | null, resets: number | null) {
     return this.serial(async () => {
       const w = await this.latest();
       if (!w || windowExpired(w.started_at)) return;
       const patch: Partial<UsageWindow> = {};
-      if (used !== null && used > w.used) patch.used = used;
+      if (used !== null) {
+        this.measuredAt = Date.now();
+        if (Math.abs(used - w.used) > 0.001) patch.used = used;
+      }
       const now = Date.now();
       if (resets && resets > now && resets <= now + WINDOW_MIN * 60_000) {
         const start = resets - WINDOW_MIN * 60_000;
