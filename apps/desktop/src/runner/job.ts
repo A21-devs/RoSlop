@@ -29,6 +29,8 @@ export interface JobDeps {
   usage: Usage;
   keys: Record<string, string>;
   history: Pick<Task, "agent" | "used" | "status">[];
+  // The Lead gets a report on the whole crew with every message.
+  crew?: string | null;
 }
 
 const STDERR_KEEP = 4000;
@@ -43,6 +45,14 @@ export class Job {
   private ended = false;
   private ask: Ask | null = null;
   private summary: string | null = null;
+  private tools: string[] = [];
+  private lastText = "";
+
+  // What this agent is up to right now, for the Lead's crew report.
+  live() {
+    return { task: this.task, said: this.lastText.slice(-600), tools: this.tools, since: this.startedAt };
+  }
+  private startedAt = Date.now();
   private finalText = "";
   private allText = "";
   private failedResult = false;
@@ -95,8 +105,9 @@ export class Job {
     const env = Object.fromEntries(Object.entries(keys).map(([id, v]) => [keyEnvName(id), v]));
     const model = modelFor(task.agent, this.provider);
 
+    const crew = this.deps.crew ? `\n\n## The crew right now\n${this.deps.crew}` : "";
     if (this.provider === "codex") {
-      let prompt = `${system}\n\n## Your task\n${brief}`;
+      let prompt = `${system}${crew}\n\n## Your task\n${brief}`;
       if (this.answered) prompt += `\n\nYou asked the owner: ${this.answered.question}\nThey answered: ${this.answered.answer}`;
       return run("codex", codexArgs(prompt, model), { cwd: this.cwd, env });
     }
@@ -105,6 +116,7 @@ export class Job {
     let prompt = brief;
     if (session) prompt = this.answered ? `The owner answered: ${this.answered.answer}` : "Pick up where you left off.";
     else if (this.answered) prompt += `\n\nYou asked the owner: ${this.answered.question}\nThey answered: ${this.answered.answer}`;
+    prompt += crew;
 
     if (settings.studio_mcp && task.needs_studio) {
       this.mcpFile = join(tmpdir(), `roslop-mcp-${task.id}.json`);
@@ -128,8 +140,10 @@ export class Job {
       return;
     } else if (ev.kind === "tool") {
       events.add(id, "tool", ev.name);
+      this.tools = [...this.tools, ev.name].slice(-6);
     } else if (ev.kind === "text") {
       this.allText += ev.text + "\n";
+      this.lastText = ev.text;
       events.note(id, ev.text);
       this.signals(ev.text);
     }

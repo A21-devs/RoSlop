@@ -49,7 +49,9 @@ export function decide(b: Board): Plan {
     const holdable = task.priority === "low" && settings.hold_low_priority;
     const fits = canStart({ elapsed: b.elapsed, used: b.used, reserved, cap: settings.cap }, estimate);
 
-    if (!fits.ok) {
+    // The Lead is how the owner talks to the crew, so it answers even when everyone's busy.
+    const lead = task.agent === "lead";
+    if (!fits.ok && !(lead && b.used + estimate <= settings.cap)) {
       plan.held.pace++;
       if (plan.wait === undefined) plan.wait = waitFor({ elapsed: b.elapsed, used: b.used, reserved, cap: settings.cap }, estimate);
       if (holdable && task.status === "queued") plan.hold.push(task);
@@ -60,7 +62,7 @@ export function decide(b: Board): Plan {
     // Two of the same agent can work at once, except in Studio where they'd trip over each other.
     const sameAgent = task.needs_studio && busy.has(task.agent);
     const noStudio = task.needs_studio && studio >= b.studioSlots;
-    const full = running >= limit;
+    const full = running >= limit && !lead;
     if (sameAgent || noStudio || full) {
       if (full) plan.held.room++;
       else if (noStudio) plan.held.studio++;

@@ -15,6 +15,7 @@ import { recordStats } from "./stats";
 import { Usage } from "./usage";
 import { briefVault, isVaultTask, seedVault } from "./vault";
 import { fetchRefs } from "./refs";
+import { crewReport } from "./crew";
 import { latestPull, pullGames, tidyLinks, writeGames, type PullResult } from "./gamedata";
 
 const POLL_MS = 20_000;
@@ -400,8 +401,9 @@ export class Runner {
     mkdirSync(cwd, { recursive: true });
     await fetchRefs(db, task.brief, cwd).catch(e => events.add(task.id, "error", `Couldn't download the reference files: ${(e as Error).message}`));
 
+    const crew = task.agent === "lead" ? await crewReport(db, task, [...this.jobs.values()].map(j => j.live())).catch(() => null) : null;
     const job = new Job(
-      { db, userId: live.userId, settings: { ...live.settings, vault_path: vault }, events, usage: live.usage, keys: allKeys(), history },
+      { crew, db, userId: live.userId, settings: { ...live.settings, vault_path: vault }, events, usage: live.usage, keys: allKeys(), history },
       claimed as Task,
       game,
       cwd,
