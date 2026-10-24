@@ -2,6 +2,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { defaultSettings, type Settings, type TableName } from "@roslop/core";
 import { emptySnapshot, TABLES, type Change, type Db, type User } from "./db";
 
+const PAGE = 1000;
+
 // Turns Supabase's errors into something a person can act on.
 export function explain(e: { message?: string; code?: string } | null | undefined): string {
   const msg = e?.message ?? String(e);
@@ -84,12 +86,19 @@ export function cloudDb(url: string, anonKey: string): Db {
       const base = defaultSettings(uid);
       const snap = emptySnapshot({ ...base, ...settings, savings: { ...base.savings, ...settings.savings }, blender: { ...base.blender, ...settings.blender } });
       // Events and stats grow forever, so only pull recent ones up front.
+      // Supabase hands back at most 1,000 rows a request, so page through until there's no more.
+      const since = new Date(Date.now() - 14 * 864e5).toISOString();
       await Promise.all(TABLES.map(async t => {
-        let q = sb.from(t).select("*").order("created_at", { ascending: true });
-        if (t === "task_events" || t === "game_stats") q = q.gte("created_at", new Date(Date.now() - 14 * 864e5).toISOString());
-        const { data, error: e3 } = await q.limit(5000);
-        check(e3);
-        (snap as Record<string, unknown>)[t] = data ?? [];
+        const rows: unknown[] = [];
+        for (let from = 0; ; from += PAGE) {
+          let q = sb.from(t).select("*").order("created_at", { ascending: true }).order("id");
+          if (t === "task_events" || t === "game_stats") q = q.gte("created_at", since);
+          const { data, error: e3 } = await q.range(from, from + PAGE - 1);
+          check(e3);
+          rows.push(...(data ?? []));
+          if (!data || data.length < PAGE) break;
+        }
+        (snap as Record<string, unknown>)[t] = rows;
       }));
       return snap;
     },

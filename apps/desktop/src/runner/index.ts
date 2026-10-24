@@ -16,6 +16,7 @@ import { Usage } from "./usage";
 import { briefVault, isVaultTask, seedVault } from "./vault";
 import { fetchRefs } from "./refs";
 import { crewReport } from "./crew";
+import { allRows } from "./db";
 import { latestPull, pullGames, tidyLinks, writeGames, type PullResult } from "./gamedata";
 
 const POLL_MS = 20_000;
@@ -281,7 +282,7 @@ export class Runner {
         : `This computer is the backup. ${worker?.name ?? "Your worker"} does the work while it's online. Switch roles in Settings, Computers and apps if this one should do it.`);
     }
 
-    const { data, error } = await db.from("tasks").select("*").in("status", ["queued", "held", "working"]).order("created_at");
+    const { data, error } = await allRows(db.from("tasks").select("*").in("status", ["queued", "held", "working"]).order("created_at").order("id"));
     fail("Couldn't load tasks", error);
     const open = (data ?? []) as Task[];
     await this.checkJobs(open);
