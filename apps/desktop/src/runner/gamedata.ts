@@ -202,111 +202,6 @@ const WRITE_HEAD = "## What works in this type";
 const typeOf = (g: GameRow) => g.subgenre || g.genre || "Other";
 const genreOf = (g: GameRow) => g.genre || "Other";
 
-const cellName = (s: string) => s.replace(/[|[\]]/g, "").trim();
-const gameCell = (g: GameRow) => `[${cellName(g.name)}](${g.url})`;
-const likes = (g: GameRow) => (g.like_ratio === null ? "-" : `${g.like_ratio}%`);
-
-function gameTable(list: GameRow[], extra?: { head: string; cell: (g: GameRow) => string }): string {
-  const head = `| Game | Playing | Visits | Likes | Age |${extra ? ` ${extra.head} |` : ""}`;
-  const line = `|---|---|---|---|---|${extra ? "---|" : ""}`;
-  return [head, line, ...list.map(g => `| ${gameCell(g)} | ${fmt(g.playing)} | ${fmt(g.visits)} | ${likes(g)} | ${g.age_days}d |${extra ? ` ${extra.cell(g)} |` : ""}`)].join("\n");
-}
-
-function stats(gs: GameRow[]) {
-  const total = gs.reduce((s, g) => s + g.playing, 0);
-  const rated = gs.filter(g => g.like_ratio !== null);
-  return {
-    n: gs.length,
-    total,
-    med: median(gs.map(g => g.playing)),
-    young: gs.filter(g => g.age_days <= 120).length,
-    quick: gs.filter(looksQuick).length,
-    like: rated.length ? Math.round(rated.reduce((s, g) => s + (g.like_ratio ?? 0), 0) / rated.length) : null,
-    top3share: total ? Math.round((gs.slice(0, 3).reduce((s, g) => s + g.playing, 0) / total) * 100) : 0,
-  };
-}
-
-function statLine(gs: GameRow[]) {
-  const st = stats(gs);
-  return `${st.n} games, ${fmt(st.total)} playing now, median ${fmt(st.med)} per game, average likes ${st.like ?? "-"}%. ${st.young} made in the last 4 months, ${st.quick} with quick game signs. The top 3 hold ${st.top3share}% of the players.`;
-}
-
-// Keeps whatever the crew wrote outside the data block.
-function withCrewText(file: string, fresh: string): string {
-  if (!existsSync(file)) return fresh;
-  const old = readFileSync(file, "utf8");
-  if (!old.includes(START) || !old.includes(END)) return fresh;
-  const block = fresh.slice(fresh.indexOf(START), fresh.indexOf(END) + END.length);
-  const front = fresh.match(/^---[\s\S]*?---\n/)?.[0] ?? "";
-  return front + old.replace(/^---[\s\S]*?---\n/, "").replace(new RegExp(`${START}[\\s\\S]*?${END}`), () => block);
-}
-
-function typeNote(type: string, genre: string, gs: GameRow[], siblings: string[], day: string): string {
-  const fresh = gs.filter(g => g.age_days <= 120).sort((a, b) => b.playing - a.playing).slice(0, 15);
-  const quick = gs.filter(looksQuick).slice(0, 20);
-  const tag = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  return [
-    "---",
-    `tags: [game-type, ${tag(genre)}${tag(type) !== tag(genre) ? `, ${tag(type)}` : ""}]`,
-    `games: ${gs.length}`,
-    `playing: ${gs.reduce((s, g) => s + g.playing, 0)}`,
-    "---",
-    "",
-    `# ${type}`,
-    "",
-    START,
-    `Part of [[${fileName(genre)}|${genre}]].${siblings.length ? ` Other ${genre} types: ${siblings.map(t => `[[${fileName(t)}|${t}]]`).join(", ")}.` : ""} Back to [[Game Types]].`,
-    "",
-    statLine(gs),
-    "",
-    "### Biggest",
-    gameTable(gs.slice(0, 40)),
-    fresh.length ? `\n### New and already pulling players\n${gameTable(fresh)}` : null,
-    quick.length ? `\n### Quick game signs\nUnder 6 months old with at least 3 signs of a fast, low effort build. Check before calling them slop.\n\n${gameTable(quick, { head: "Signs", cell: g => slopSigns(g).join(", ") })}` : null,
-    gs.length > 40 ? `\n${gs.length - 40} more in the data file.` : null,
-    "",
-    `Numbers pulled ${day}.`,
-    END,
-    "",
-    WRITE_HEAD,
-    "",
-  ].filter(l => l !== null).join("\n");
-}
-
-function genreNote(genre: string, gs: GameRow[], types: Map<string, GameRow[]>, day: string): string {
-  const rows = [...types.entries()].sort((a, b) => stats(b[1]).total - stats(a[1]).total);
-  return [
-    "---",
-    `tags: [genre]`,
-    `games: ${gs.length}`,
-    "---",
-    "",
-    `# ${genre}`,
-    "",
-    START,
-    `Back to [[Game Types]].`,
-    "",
-    statLine(gs),
-    "",
-    "| Type | Games | Playing now | Median | New | Quick |",
-    "|---|---|---|---|---|---|",
-    ...rows.map(([t, list]) => {
-      const st = stats(list);
-      const name = t === genre ? `${genre} (no subtype)` : `[[${fileName(t)}\\|${t}]]`;
-      return `| ${name} | ${st.n} | ${fmt(st.total)} | ${fmt(st.med)} | ${st.young} | ${st.quick} |`;
-    }),
-    "",
-    "### Biggest",
-    gameTable(gs.slice(0, 15), { head: "Type", cell: g => (typeOf(g) === genre ? "-" : `[[${fileName(typeOf(g))}\\|${typeOf(g)}]]`) }),
-    "",
-    `Numbers pulled ${day}.`,
-    END,
-    "",
-    "## What works in this genre",
-    "",
-  ].join("\n");
-}
-
 function csv(rows: GameRow[]): string {
   const cols: (keyof GameRow)[] = ["universe_id", "name", "creator", "genre", "subgenre", "playing", "visits", "favorites", "up", "down", "like_ratio", "created", "updated", "age_days", "max_players", "url"];
   const cell = (v: unknown) => {
@@ -322,15 +217,151 @@ function median(ns: number[]) {
   return s[Math.floor(s.length / 2)];
 }
 
+const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : "0%");
+
+function stats(gs: GameRow[]) {
+  const total = gs.reduce((s, g) => s + g.playing, 0);
+  const rated = gs.filter(g => g.like_ratio !== null);
+  const sorted = [...gs].sort((a, b) => b.playing - a.playing);
+  return {
+    n: gs.length,
+    total,
+    med: median(gs.map(g => g.playing)),
+    young: gs.filter(g => g.age_days <= 120).length,
+    quick: gs.filter(looksQuick).length,
+    like: rated.length ? Math.round(rated.reduce((s, g) => s + (g.like_ratio ?? 0), 0) / rated.length) : null,
+    top3share: total ? Math.round((sorted.slice(0, 3).reduce((s, g) => s + g.playing, 0) / total) * 100) : 0,
+  };
+}
+
+const STOP = new Set("the a an and of to in on for with my your new update upd event x2 2x 3x op free best simulator tycoon obby game rp roblox".split(" "));
+
+// The words titles in a topic keep using, which says what's hot without naming anyone.
+function titleWords(gs: GameRow[], n = 12): string {
+  const counts = new Map<string, number>();
+  for (const g of gs) {
+    const words = new Set(g.name.toLowerCase().replace(/[^\p{L}\s]/gu, " ").split(/\s+/).filter(w => w.length > 2 && !STOP.has(w)));
+    for (const w of words) counts.set(w, (counts.get(w) ?? 0) + 1);
+  }
+  return [...counts.entries()].filter(([, c]) => c >= 3).sort((a, b) => b[1] - a[1]).slice(0, n).map(([w, c]) => `${w} (${c})`).join(", ") || "nothing repeats much";
+}
+
+function bucket(gs: GameRow[], label: string, test: (g: GameRow) => boolean, all: GameRow[]) {
+  const total = all.reduce((s, g) => s + g.playing, 0);
+  const these = gs.filter(test);
+  return `| ${label} | ${these.length} (${pct(these.length, all.length)}) | ${fmt(these.reduce((s, g) => s + g.playing, 0))} (${pct(these.reduce((s, g) => s + g.playing, 0), total)}) | ${fmt(median(these.map(g => g.playing)))} |`;
+}
+
+function topicFacts(gs: GameRow[]): string[] {
+  const st = stats(gs);
+  const updatedWeek = gs.filter(g => Date.now() - Date.parse(g.updated) < 7 * 86_400_000).length;
+  const emoji = gs.filter(g => /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(g.name)).length;
+  const lists = new Map<string, number>();
+  for (const g of gs) for (const l of g.lists) if (!l.startsWith("Search")) lists.set(l, (lists.get(l) ?? 0) + 1);
+  const topLists = [...lists.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([l, c]) => `${l} (${c})`).join(", ");
+  return [
+    `${st.n} games, ${fmt(st.total)} playing now, median ${fmt(st.med)} per game, average likes ${st.like ?? "-"}%. The top 3 hold ${st.top3share}% of the players.`,
+    "",
+    "| Age | Games | Playing now | Median per game |",
+    "|---|---|---|---|",
+    bucket(gs, "Under 1 month", g => g.age_days <= 30, gs),
+    bucket(gs, "1 to 4 months", g => g.age_days > 30 && g.age_days <= 120, gs),
+    bucket(gs, "4 to 12 months", g => g.age_days > 120 && g.age_days <= 365, gs),
+    bucket(gs, "Over a year", g => g.age_days > 365, gs),
+    "",
+    "| Size right now | Games | Playing now | Median per game |",
+    "|---|---|---|---|",
+    bucket(gs, "10k+ playing", g => g.playing >= 10_000, gs),
+    bucket(gs, "1k to 10k", g => g.playing >= 1000 && g.playing < 10_000, gs),
+    bucket(gs, "100 to 1k", g => g.playing >= 100 && g.playing < 1000, gs),
+    bucket(gs, "Under 100", g => g.playing < 100, gs),
+    "",
+    `- Words titles keep using: ${titleWords(gs)}`,
+    `- Emoji in the title: ${pct(emoji, gs.length)} of games`,
+    `- Updated in the last week: ${pct(updatedWeek, gs.length)}`,
+    `- Typical server size: ${median(gs.map(g => g.max_players))}`,
+    `- Quick game signs (new, low effort builds): ${st.quick} games, ${pct(st.quick, gs.length)}`,
+    topLists ? `- Shows up on: ${topLists}` : null,
+  ].filter((l): l is string => l !== null);
+}
+
+// Keeps whatever the crew wrote outside the data block.
+function withCrewText(file: string, fresh: string): string {
+  if (!existsSync(file)) return fresh;
+  const old = readFileSync(file, "utf8");
+  if (!old.includes(START) || !old.includes(END)) return fresh;
+  const block = fresh.slice(fresh.indexOf(START), fresh.indexOf(END) + END.length);
+  const front = fresh.match(/^---[\s\S]*?---\n/)?.[0] ?? "";
+  return front + old.replace(/^---[\s\S]*?---\n/, "").replace(new RegExp(`${START}[\\s\\S]*?${END}`), () => block);
+}
+
+const tag = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+function typeNote(type: string, genre: string, gs: GameRow[], siblings: string[], day: string): string {
+  return [
+    "---",
+    `tags: [game-type, ${tag(genre)}${tag(type) !== tag(genre) ? `, ${tag(type)}` : ""}]`,
+    `games: ${gs.length}`,
+    `playing: ${gs.reduce((s, g) => s + g.playing, 0)}`,
+    "---",
+    "",
+    `# ${type}`,
+    "",
+    START,
+    `Part of [[${fileName(genre)}|${genre}]].${siblings.length ? ` Other ${genre} types: ${siblings.map(t => `[[${fileName(t)}|${t}]]`).join(", ")}.` : ""} Back to [[Game Types]].`,
+    "",
+    ...topicFacts(gs),
+    "",
+    `Numbers from ${gs.length} games pulled ${day}.`,
+    END,
+    "",
+    WRITE_HEAD,
+    "",
+  ].join("\n");
+}
+
+function genreNote(genre: string, gs: GameRow[], types: Map<string, GameRow[]>, day: string): string {
+  const rows = [...types.entries()].sort((a, b) => stats(b[1]).total - stats(a[1]).total);
+  return [
+    "---",
+    "tags: [genre]",
+    `games: ${gs.length}`,
+    "---",
+    "",
+    `# ${genre}`,
+    "",
+    START,
+    "Back to [[Game Types]].",
+    "",
+    "| Type | Games | Playing now | Median | Made in last 4 months | Quick signs |",
+    "|---|---|---|---|---|---|",
+    ...rows.map(([t, list]) => {
+      const st = stats(list);
+      const name = t === genre ? `${genre} (no subtype)` : `[[${fileName(t)}\\|${t}]]`;
+      return `| ${name} | ${st.n} | ${fmt(st.total)} | ${fmt(st.med)} | ${pct(st.young, st.n)} | ${pct(st.quick, st.n)} |`;
+    }),
+    "",
+    ...topicFacts(gs),
+    "",
+    `Numbers from ${gs.length} games pulled ${day}.`,
+    END,
+    "",
+    "## What works in this genre",
+    "",
+  ].join("\n");
+}
+
 function chartsNote(rows: GameRow[], day: string): string {
-  const typeLink = (g: GameRow) => `[[${fileName(typeOf(g))}\\|${typeOf(g)}]]`;
-  const fresh = rows.filter(g => g.age_days <= 120).sort((a, b) => b.playing - a.playing).slice(0, 30);
-  const quick = rows.filter(g => looksQuick(g) && g.playing >= 100).sort((a, b) => b.playing - a.playing).slice(0, 40);
-  const loved = rows.filter(g => g.playing >= 1000 && g.like_ratio !== null).sort((a, b) => (b.like_ratio ?? 0) - (a.like_ratio ?? 0)).slice(0, 20);
-  const genres = new Map<string, GameRow[]>();
-  for (const g of rows) genres.set(genreOf(g), [...(genres.get(genreOf(g)) ?? []), g]);
-  const genreRows = [...genres.entries()].map(([k, gs]) => ({ k, ...stats(gs) })).sort((a, b) => b.total - a.total);
-  const withType = { head: "Type", cell: typeLink };
+  const byType = new Map<string, GameRow[]>();
+  for (const g of rows) byType.set(typeOf(g), [...(byType.get(typeOf(g)) ?? []), g]);
+  const types = [...byType.entries()].filter(([, gs]) => gs.length >= 5).map(([t, gs]) => {
+    const st = stats(gs);
+    const freshPlayers = gs.filter(g => g.age_days <= 120).reduce((s, g) => s + g.playing, 0);
+    return { t, ...st, freshShare: st.total ? freshPlayers / st.total : 0 };
+  });
+  const link = (t: string) => `[[${fileName(t)}\\|${t}]]`;
+  const table = (list: typeof types, head: string, cell: (x: (typeof types)[number]) => string) =>
+    [`| Type | Games | Playing now | ${head} |`, "|---|---|---|---|", ...list.map(x => `| ${link(x.t)} | ${x.n} | ${fmt(x.total)} | ${cell(x)} |`)].join("\n");
 
   return [
     "---",
@@ -340,26 +371,26 @@ function chartsNote(rows: GameRow[], day: string): string {
     "",
     `# Charts ${day}`,
     "",
-    `${rows.length} games pulled from the Roblox charts and searches on ${day}, with ${fmt(rows.reduce((s, g) => s + g.playing, 0))} people playing them right now. Every game sits in its type's note in [[Game Types]]. Raw data: Market/Data/games-${day}.csv.`,
+    `${rows.length} games from the Roblox charts and searches on ${day}, ${fmt(rows.reduce((s, g) => s + g.playing, 0))} playing right now, sorted into [[Game Types]]. Game by game numbers are in Market/Data/games-${day}.csv.`,
     "",
-    "## By genre",
-    "| Genre | Games | Playing now | Median per game | New | Quick |",
-    "|---|---|---|---|---|---|",
-    ...genreRows.map(r => `| [[${fileName(r.k)}\\|${r.k}]] | ${r.n} | ${fmt(r.total)} | ${fmt(r.med)} | ${r.young} | ${r.quick} |`),
+    "## Biggest types",
+    table([...types].sort((a, b) => b.total - a.total).slice(0, 20), "Median per game", x => fmt(x.med)),
     "",
-    "## Most played",
-    gameTable(rows.slice(0, 30), withType),
+    "## Where new games win",
+    "Share of the type's players that are in games made in the last 4 months.",
     "",
-    "## New and already big",
-    gameTable(fresh, withType),
+    table([...types].sort((a, b) => b.freshShare - a.freshShare).slice(0, 15), "Players in new games", x => `${Math.round(x.freshShare * 100)}%`),
     "",
-    "## Quick game signs",
-    "Under 6 months old with at least 3 signs of a fast, low effort build (emoji or [NEW] titles, trend names, thin description, unverified creator, few favorites). Check before calling any of them slop.",
+    "## Easiest to get a foothold",
+    "High median per game means players spread out instead of piling into a few giants.",
     "",
-    gameTable(quick, { head: "Type · signs", cell: g => `${typeLink(g)} · ${slopSigns(g).join(", ")}` }),
+    table([...types].filter(x => x.n >= 10).sort((a, b) => b.med - a.med).slice(0, 15), "Median · top 3 share", x => `${fmt(x.med)} · ${x.top3share}%`),
     "",
-    "## Best liked with 1k+ playing",
-    gameTable(loved, withType),
+    "## Where quick, low effort games show up",
+    table([...types].sort((a, b) => b.quick / b.n - a.quick / a.n).slice(0, 15), "Quick signs", x => pct(x.quick, x.n)),
+    "",
+    `## Words titles keep using`,
+    titleWords(rows, 30),
     "",
   ].join("\n");
 }
@@ -432,6 +463,13 @@ export function writeGames(vault: string, rows: GameRow[]): PullResult {
   );
   clearGameNotes(vault);
 
+  // Older charts notes listed games by name; only today's stays.
+  try {
+    for (const f of readdirSync(join(vault, "Market"))) {
+      const p = join(vault, "Market", f);
+      if (/^Charts \d{4}-\d{2}-\d{2}\.md$/.test(f) && f !== `Charts ${day}.md` && readFileSync(p, "utf8").includes("tags: [market, data]")) unlinkSync(p);
+    }
+  } catch {}
   const charts = join(vault, "Market", `Charts ${day}.md`);
   writeFileSync(charts, chartsNote(rows, day));
   return { count: rows.length, day, csv: join(dataDir, `games-${day}.csv`), charts, types: typeCount + genres.length };

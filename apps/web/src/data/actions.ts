@@ -113,12 +113,12 @@ ${studioFacts(s)}`;
 export function buildVault(s: Snapshot, game_id: string | null = null) {
   const brief = `Build our Obsidian vault for real: the crew writes the notes as files, this isn't a summary.
 
-Target: at least 200 written notes. Never a note per game: games are written about inside the note for their type, pattern or genre, linked to their Roblox page. Plan 10 to 15 tasks and give each one a note count, so the counts add up to 200 or more. Name the folders and the kind of notes in every brief. Roughly:
+Target: at least 200 written notes. Notes are about topics like Tycoon, Simulator or RPG, mechanics and habits, never single games, and they don't name games at all: describe the pattern and how many games do it. Plan 10 to 15 tasks and give each one a note count, so the counts add up to 200 or more. Name the folders and the kind of notes in every brief. Roughly:
 - Games: a note per game of ours, with the core loop, where it's at and what's next.
 - Game types (about 60, already made from the data pull in Game Types): write "What works in this type" in each, covering the standout games inside it, from the biggest down to small quick games. These count once written.
-- Patterns (about 60): one note per mechanic, loop, progression trick or title/thumbnail habit that shows up across many games, with counts and 5 to 10 named examples, linked to the types it shows up in.
-- UI (about 20): one note per kind of screen or UI habit (shops, HUDs, popups, rebirth screens), with examples from many games.
-- Money (about 15): gamepass, dev product and pricing patterns, with examples and numbers.
+- Patterns (about 60): one note per mechanic, loop, progression trick or title/thumbnail habit that shows up across many games, with counts and how it plays out, linked to the types it shows up in.
+- UI (about 20): one note per kind of screen or UI habit (shops, HUDs, popups, rebirth screens), with how many games do it and how.
+- Money (about 15): gamepass, dev product and pricing patterns, with numbers.
 - AI slop and quick games (about 20): what the quick game signs turn up, what's cheap to copy and what makes them feel cheap.
 - References (about 20): Pulse and Scenic search the web for UI, art style and systems that fit our games, screenshots saved into References/img.
 - Design rules (about 15): approved things from Review become rules, sent back things become don'ts.

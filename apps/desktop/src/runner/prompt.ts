@@ -42,9 +42,9 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
   if (pull) {
     lines.push(
       "",
-      `Real game data: ${pull.count} Roblox games pulled ${pull.day}, in ${pull.csv} (and the .json next to it), one note per game type in "Game Types" (Tycoon, Tower Defense...) listing its games, an index at Game Types/Game Types.md, summary in Market/Charts ${pull.day}.md.`,
-      "- Work from this data across many games: group them by genre, age, size and pattern, and back every claim with counts and named examples. Don't just study one big game.",
-      "- Never make a note for a single game. Games go inside the note for their type, pattern or genre, as rows, examples or short write-ups, linked to their Roblox page.",
+      `Real game data: ${pull.count} Roblox games pulled ${pull.day}, in ${pull.csv} (and the .json next to it), one note per game type in "Game Types" (Tycoon, Tower Defense...) with stats for that type, an index at Game Types/Game Types.md, summary in Market/Charts ${pull.day}.md.`,
+      "- Work from this data across many games: group them by genre, age, size and pattern, and back every claim with counts. Don't just study one big game.",
+      "- Notes are about topics (Tycoon, Simulator, RPG, a mechanic, a UI habit), never about single games. Don't name games in notes at all: say what the pattern is and how many games do it, e.g. \"31 of 243 tycoons sell a 2x money pass\". Game names stay in the data file.",
       "- Each type note has a data block that refreshes daily; leave it alone and write under \"What works in this type\" (genres: \"What works in this genre\"). New notes for patterns, mechanics and so on link to the types they show up in.",
       "- Read the CSV with a script (Bash and python or node) instead of opening hundreds of notes one by one.",
     );
