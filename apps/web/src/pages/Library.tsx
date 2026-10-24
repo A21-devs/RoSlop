@@ -44,7 +44,7 @@ export function Library() {
     }
     if (tab === "assets") {
       const names = list.map(f => f.name).join(", ");
-      await messageAgent(s, "librarian", `Put ${list.length === 1 ? list[0].name : `${list.length} uploads`} on Roblox`, `I just added these to the library: ${names}. Upload them to Roblox with Open Cloud, set the asset ids on their library entries, and tidy the names if they're messy.`, game === "all" ? null : game);
+      await messageAgent(s, "librarian", `Put ${list.length === 1 ? list[0].name : `${list.length} uploads`} on Roblox`, `I just added these to the library: ${names}. Upload them to Roblox with Open Cloud and print an ASSET line with the library name and asset id for each one, so the Library marks them as uploaded.`, game === "all" ? null : game);
     }
   };
 

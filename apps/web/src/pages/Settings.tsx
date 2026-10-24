@@ -4,6 +4,7 @@ import { AGENTS, ago, CONNECTORS, KEYS, MODELS, pct, projected, SAVINGS, serverF
 import { resetDemo } from "../data/demo";
 import { db, toast, useData, useSnap, useUsage } from "../data/store";
 import { Av, Icon, Toggle } from "../ui/bits";
+import { ModelFields } from "../ui/ModelRules";
 
 const SECTIONS = [["usage", "Usage"], ["computers", "Computers and apps"], ["connectors", "Connectors"], ["keys", "Keys"], ["provider", "AI provider"], ["account", "Account"], ["look", "Look"]] as const;
 
@@ -234,28 +235,7 @@ function BlenderRules() {
   return (
     <div className="card pad col" style={{ marginTop: 14, gap: 12 }}>
       <div><b>How Blender models should come out</b><div className="muted small">Every model the crew makes follows these, so they look like one game and stay light on phones.</div></div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-        <label className="field"><span>Style</span>
-          <select className="input" value={r.style} onChange={e => set({ style: e.target.value as typeof r.style })}>
-            {["low poly", "stylized", "toon", "realistic", "voxel"].map(v => <option key={v} value={v}>{v}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Max triangles per model</span>
-          <select className="input" value={r.max_tris} onChange={e => set({ max_tris: Number(e.target.value) })}>
-            {[500, 1500, 4000, 8000, 15000].map(v => <option key={v} value={v}>{v.toLocaleString()}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Texture size</span>
-          <select className="input" value={r.texture} onChange={e => set({ texture: Number(e.target.value) as typeof r.texture })}>
-            {[256, 512, 1024].map(v => <option key={v} value={v}>{v} x {v}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Collision in Studio</span>
-          <select className="input" value={r.collision} onChange={e => set({ collision: e.target.value as typeof r.collision })}>
-            <option value="box">Box, cheapest</option><option value="hull">Hull</option><option value="precise">Precise, only if needed</option>
-          </select>
-        </label>
-      </div>
+      <ModelFields r={r} set={set} />
       <div className="list">
         <Row title="One material per model" sub="Fewer draw calls. Extra colors go in a texture atlas."><Toggle on={r.single_material} onChange={v => set({ single_material: v })} /></Row>
         <Row title="Bake detail into textures" sub="Instead of adding geometry"><Toggle on={r.bake} onChange={v => set({ bake: v })} /></Row>

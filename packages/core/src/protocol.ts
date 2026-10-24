@@ -5,18 +5,24 @@ import type { AgentId, MarketItem, Priority } from "./types";
 //   ASK: Which layout? | A | B
 //   PROOF: shots/shop-b.png | Phone shop, option B | Buy button sits under your thumb
 //   DONE: Lava now ticks 20 dmg every 0.5s, weekly reset uses os.time
+//   ASSET: Gem | 14520198334   (a library item is on Roblox now)
 // The Lead also ends its reply with a ```tasks block of JSON.
 
 export type Signal =
   | { kind: "ask"; question: string; options: string[] }
   | { kind: "proof"; path: string; title: string; note: string }
-  | { kind: "done"; summary: string };
+  | { kind: "done"; summary: string }
+  | { kind: "asset"; name: string; id: string };
 
 export function readSignal(line: string): Signal | null {
-  const m = line.trim().match(/^(ASK|PROOF|DONE):\s*(.+)$/);
+  const m = line.trim().match(/^(ASK|PROOF|DONE|ASSET):\s*(.+)$/);
   if (!m) return null;
   const parts = m[2].split("|").map(p => p.trim()).filter(Boolean);
   if (m[1] === "ASK") return { kind: "ask", question: parts[0], options: parts.slice(1) };
+  if (m[1] === "ASSET") {
+    const id = parts[1]?.match(/\d{5,}/)?.[0];
+    return id ? { kind: "asset", name: parts[0], id } : null;
+  }
   if (m[1] === "PROOF") return { kind: "proof", path: parts[0], title: parts[1] ?? "Proof", note: parts[2] ?? "" };
   return { kind: "done", summary: m[2].trim() };
 }
@@ -79,4 +85,25 @@ export function readMarket(text: string): { sort: string; items: MarketItem[] } 
 // What the Lead says to you, without the tasks block.
 export function stripPlan(text: string): string {
   return text.replace(/```tasks[\s\S]*?```/, "").trim();
+}
+
+// Which Library tab a file belongs in, from its name.
+export function assetKind(name: string, mime = ""): "icon" | "model" | "sound" | "vfx" | "ui" {
+  const n = name.toLowerCase();
+  if (/\.(fbx|obj|rbxm|rbxmx|glb|gltf|blend|dae|stl)$/.test(n)) return "model";
+  if (/^audio\//.test(mime) || /\.(mp3|ogg|wav|flac|m4a)$/.test(n) || /(^|[^a-z])(sfx|sound|music|audio)([^a-z]|$)/.test(n)) return "sound";
+  if (/vfx|fx[_\- .]|particle|effect|flipbook|spritesheet|explosion|smoke|fire|flame|spark|trail|beam|aura|glow|slash|impact|magic|lightning|shockwave/.test(n)) return "vfx";
+  if (/(^|[^a-z])(ui|gui|hud)([^a-z]|$)|button|btn|frame|menu|panel|window|popup|shop|bar|slot|inventory|screen|layout|tab|card|badge|banner|title/.test(n)) return "ui";
+  if (/model|mesh|prop|rig|character/.test(n)) return "model";
+  return "icon";
+}
+
+// Lines a brief carries down to the tasks the Lead splits it into.
+export function carriedLines(brief: string): string {
+  const keep: string[] = [];
+  for (const re of [/^Vault folder: .+$/m, /^Reference files: .+$/m, /^Model rules \(this task only\):\n(?:- .+\n?)+/m]) {
+    const m = brief.match(re);
+    if (m) keep.push(m[0].trim());
+  }
+  return keep.join("\n\n");
 }

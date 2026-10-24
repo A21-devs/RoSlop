@@ -22,8 +22,17 @@ export function serverFor(id: string, found: string[] | null): string | undefine
   return found?.find(n => n.toLowerCase().includes(id));
 }
 
+export const BLENDER_STYLES = [
+  "stylized", "low poly", "toon", "cartoon", "hand-painted", "anime / cel shaded", "chibi", "realistic", "semi-realistic",
+  "voxel", "blocky (classic Roblox)", "PS1 retro", "flat shaded", "clay", "sci-fi hard surface", "fantasy", "horror", "cute pastel",
+];
+export const BLENDER_PALETTES = ["bright and saturated", "pastel", "muted", "dark and moody", "neon", "earthy", "match the game"];
+export const BLENDER_EDGES = ["soft bevels", "sharp", "chunky rounded", "outlined (toon)"];
+
 export const BLENDER_DEFAULTS: BlenderRules = {
   style: "stylized",
+  palette: "match the game",
+  edges: "soft bevels",
   max_tris: 4000,
   texture: 512,
   single_material: true,
@@ -36,7 +45,7 @@ export const BLENDER_DEFAULTS: BlenderRules = {
 // What the crew is told whenever they touch Blender.
 export function blenderBrief(r: BlenderRules): string {
   return [
-    `Style: ${r.style}. Keep every model in that style so they look like one game.`,
+    `Style: ${r.style}, ${r.palette} colors, ${r.edges} edges. Keep every model in that style so they look like one game.`,
     `Budget: at most ${r.max_tris.toLocaleString()} triangles per model (Roblox caps a MeshPart at 20,000). Decimate or retopo until it fits.`,
     `Textures: ${r.texture}x${r.texture} max, power of two.${r.bake ? " Bake detail into the texture instead of adding geometry." : ""}`,
     r.single_material ? "One material per model. Combine with a texture atlas if you need more." : "",
@@ -71,6 +80,7 @@ export function defaultSettings(user_id: string): Settings {
     vault_path: null,
     studio_mcp: null,
     blender: BLENDER_DEFAULTS,
+    templates: [],
     mcp_found: null,
   };
 }

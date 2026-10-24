@@ -14,6 +14,7 @@ import { decide } from "./schedule";
 import { recordStats } from "./stats";
 import { Usage } from "./usage";
 import { briefVault, isVaultTask, seedVault } from "./vault";
+import { fetchRefs } from "./refs";
 import { latestPull, pullGames, tidyLinks, writeGames, type PullResult } from "./gamedata";
 
 const POLL_MS = 20_000;
@@ -303,7 +304,6 @@ export class Runner {
       settings: live.settings,
       elapsed: windowElapsed(window.started_at),
       used: window.used,
-      recentRate: await live.usage.recentRate(),
       studioSlots: live.machine.studio_slots || STUDIO_SLOTS,
       studioBusy: [...this.jobs.values()].filter(j => j.task.needs_studio).length,
       estimateFor: agent => estimate(agent, history),
@@ -315,7 +315,17 @@ export class Runner {
     for (const { task, estimate } of plan.start) await this.launch(live, task, estimate, history);
 
     const running = open.filter(t => t.status === "working").length + plan.start.length;
-    if (running) return this.say(null);
+    const parentWait = waiting.filter(t => t.parent_id && !doneParents.has(t.parent_id)).length;
+    if (running) {
+      const why = [
+        parentWait && `${parentWait} waiting on an earlier task`,
+        plan.held.studio && `${plan.held.studio} waiting for a Studio slot`,
+        plan.held.agent && `${plan.held.agent} waiting for the same agent to finish in Studio`,
+        plan.held.pace && `${plan.held.pace} held for usage pace`,
+        plan.held.room && `${plan.held.room} waiting for a free spot`,
+      ].filter(Boolean);
+      return this.say(running < plan.limit && why.length ? `${running} of ${plan.limit} running. ${why.join(", ")}.` : null);
+    }
     // Held back by pace on a stale reading? Check the real numbers before making anyone wait.
     if (plan.wait !== undefined && live.settings.provider === "claude" && live.usage.stale) {
       void live.usage.probe().then(() => this.soon());
@@ -388,6 +398,7 @@ export class Runner {
     }
     const cwd = vaultJob && vault ? vault : game?.project_path || join(app.getPath("userData"), "games", task.game_id ?? "general");
     mkdirSync(cwd, { recursive: true });
+    await fetchRefs(db, task.brief, cwd).catch(e => events.add(task.id, "error", `Couldn't download the reference files: ${(e as Error).message}`));
 
     const job = new Job(
       { db, userId: live.userId, settings: { ...live.settings, vault_path: vault }, events, usage: live.usage, keys: allKeys(), history },

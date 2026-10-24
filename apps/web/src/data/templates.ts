@@ -1,4 +1,5 @@
-import { AGENT, STAGES, type Game } from "@roslop/core";
+import { AGENT, STAGES, type Game, type Template as Saved } from "@roslop/core";
+import { db, toast, useSnap } from "./store";
 import type { Snapshot } from "./db";
 
 export interface Template {
@@ -102,4 +103,32 @@ export function suggestions(s: Snapshot, gameId: string): Suggestion[] {
   }
 
   return out.slice(0, 5);
+}
+
+// Your own templates live in settings so they sync. If the database hasn't got the column yet
+// (setup not re-run), they stay on this device until it does.
+export function useTemplates() {
+  const s = useSnap();
+  const local = (): Saved[] => {
+    try {
+      return JSON.parse(localStorage.getItem("roslop-templates") ?? "[]");
+    } catch {
+      return [];
+    }
+  };
+  const list = [...(s.settings.templates ?? []), ...local().filter(t => !(s.settings.templates ?? []).some(x => x.id === t.id))];
+  const write = async (next: Saved[]) => {
+    try {
+      await db.saveSettings({ templates: next });
+      localStorage.removeItem("roslop-templates");
+    } catch {
+      localStorage.setItem("roslop-templates", JSON.stringify(next));
+      toast("Saved on this device only. Run the Supabase setup again so templates sync.", true);
+    }
+  };
+  return {
+    list,
+    save: (t: Saved) => write([t, ...list]),
+    remove: (id: string) => write(list.filter(t => t.id !== id)),
+  };
 }

@@ -16,7 +16,8 @@ function newTask(s: Snapshot, agent: AgentId, title: string, brief: string, game
 export async function askLead(s: Snapshot, text: string, game_id: string | null) {
   const t = text.trim();
   if (!t) return;
-  const task = await newTask(s, "lead", t.split("\n")[0], t, game_id);
+  // What you ask the Lead goes to the front of the queue.
+  const task = await newTask(s, "lead", t.split("\n")[0], t, game_id, { priority: "high" });
   await db.insert("messages", { author: "you", text: t, game_id, task_ids: [task.id] });
   if (db.mode === "demo") {
     setTimeout(() => {
@@ -83,6 +84,7 @@ export async function publish(g: Game) {
 export async function uploadAsset(file: File, kind: "icon" | "model" | "sound" | "vfx" | "ui" | "reference", game_id: string | null) {
   const path = await db.upload(file, kind === "reference" ? "references" : "assets");
   await db.insert("assets", { name: file.name.replace(/\.[^.]+$/, ""), kind, file_url: path, roblox_id: null, tags: [], game_id });
+  return path;
 }
 
 // Agents can't see the database, so the brief carries what the studio has done so far.
@@ -120,7 +122,7 @@ export function buildVault(s: Snapshot, game_id: string | null = null) {
   const brief = `Build our Obsidian vault for real: the crew writes the notes as files, this isn't a summary.
 
 Target: at least 200 written notes. Notes are about topics like Tycoon, Simulator or RPG, mechanics and habits, never single games, and they don't name games at all: describe the pattern and how many games do it. Plan 10 to 15 tasks and give each one a note count, so the counts add up to 200 or more. Name the folders and the kind of notes in every brief. Roughly:
-- Games: a note per game of ours, with the core loop, where it's at and what's next.
+- Games: a note per game of ours, with the core loop, where it's at and what's next, from the game itself in Studio, not the web.
 - Game types (about 60, already made from the data pull in Game Types): write "What works in this type" in each, covering the standout games inside it, from the biggest down to small quick games. These count once written.
 - Patterns (about 60): one note per mechanic, loop, progression trick or title/thumbnail habit that shows up across many games, with counts and how it plays out, linked to the types it shows up in.
 - UI (about 20): one note per kind of screen or UI habit (shops, HUDs, popups, rebirth screens), with how many games do it and how.

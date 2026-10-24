@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AGENT, estimate, readPlan, stripPlan, type Task } from "@roslop/core";
+import { AGENT, carriedLines, estimate, readPlan, stripPlan, type Task } from "@roslop/core";
 import { randomUUID } from "node:crypto";
 import { fail } from "./db";
-import { briefVault, isVaultTask } from "./vault";
+import { isVaultTask } from "./vault";
 
 type History = Pick<Task, "agent" | "used" | "status">[];
 
@@ -10,8 +10,7 @@ type History = Pick<Task, "agent" | "used" | "status">[];
 export async function savePlan(db: SupabaseClient, userId: string, lead: Task, text: string, history: History) {
   const planned = readPlan(text);
   const ids = planned.map(() => randomUUID());
-  const named = briefVault(lead.brief);
-  const vaultLine = named ? `Vault folder: ${named}` : null;
+  const carry = carriedLines(lead.brief);
 
   if (planned.length) {
     const rows = planned.map((p, i) => {
@@ -23,7 +22,7 @@ export async function savePlan(db: SupabaseClient, userId: string, lead: Task, t
         agent: p.agent,
         // Keep vault work recognisable, so it runs inside the vault folder.
         title: isVaultTask(lead) && !isVaultTask(p) ? `Vault: ${p.title}` : p.title,
-        brief: vaultLine && !briefVault(p.brief) ? `${p.brief}\n\n${vaultLine}` : p.brief,
+        brief: carry && !carriedLines(p.brief) ? `${p.brief}\n\n${carry}` : p.brief,
         priority: p.priority,
         status: "queued",
         requested_by: "lead",

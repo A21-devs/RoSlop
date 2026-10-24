@@ -160,7 +160,9 @@ export interface AppEntry {
 }
 
 export interface BlenderRules {
-  style: "low poly" | "stylized" | "toon" | "realistic" | "voxel";
+  style: string;
+  palette: string;
+  edges: string;
   max_tris: number;
   texture: 256 | 512 | 1024;
   single_material: boolean;
@@ -168,6 +170,13 @@ export interface BlenderRules {
   pivot_bottom: boolean;
   collision: "box" | "hull" | "precise";
   notes: string;
+}
+
+export interface Template {
+  id: string;
+  title: string;
+  body: string;
+  refs: string[];
 }
 
 export interface Settings {
@@ -186,6 +195,7 @@ export interface Settings {
   blender: BlenderRules;
   // What the worker saw in `claude mcp list` last time it checked. null = never checked.
   mcp_found: string[] | null;
+  templates: Template[];
 }
 
 export interface Tables {

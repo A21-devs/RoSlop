@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { modelFor, readSignals, stripPlan, tokensToWindow, type Ask, type Game, type Settings, type Task } from "@roslop/core";
+import { assetKind, modelFor, readSignals, stripPlan, tokensToWindow, type Ask, type Game, type Settings, type Task } from "@roslop/core";
 import type { ChildProcess } from "node:child_process";
 import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -138,6 +138,10 @@ export class Job {
   private signals(text: string) {
     for (const s of readSignals(text)) {
       if (s.kind === "done") this.summary = s.summary;
+      if (s.kind === "asset" && !this.assets.has(s.id)) {
+        this.assets.add(s.id);
+        this.uploads.push(this.asset(s));
+      }
       if (s.kind === "proof" && !this.proofPaths.has(s.path)) {
         this.proofPaths.add(s.path);
         this.uploads.push(this.proof(s));
@@ -147,6 +151,21 @@ export class Job {
         this.stop("ask");
         return;
       }
+    }
+  }
+
+  private assets = new Set<string>();
+  // An agent put a library item on Roblox. Match it by name, or add it if it's new.
+  private async asset(a: { name: string; id: string }) {
+    const { db, userId, events } = this.deps;
+    try {
+      const { data } = await db.from("assets").select("id, name").is("roblox_id", null).ilike("name", a.name.replace(/[%_]/g, "\\$&"));
+      const row = (data ?? [])[0] as { id: string } | undefined;
+      if (row) await db.from("assets").update({ roblox_id: a.id }).eq("id", row.id);
+      else await db.from("assets").insert({ user_id: userId, name: a.name, kind: assetKind(a.name), roblox_id: a.id, file_url: null, tags: [], game_id: this.task.game_id });
+      events.add(this.task.id, "note", `${a.name} is on Roblox as ${a.id}`);
+    } catch (e) {
+      events.add(this.task.id, "error", (e as Error).message);
     }
   }
 

@@ -4,6 +4,7 @@ import { AGENT } from "@roslop/core";
 import { askLead, remove } from "../data/actions";
 import { useData, useGameFilter, useSnap } from "../data/store";
 import { Av, Del, Icon } from "../ui/bits";
+import { Extras, useExtras } from "../ui/Extras";
 
 export function Lead() {
   const s = useSnap();
@@ -20,9 +21,11 @@ export function Lead() {
     end.current?.scrollIntoView({ block: "end" });
   }, [messages.length]);
 
+  const extras = useExtras();
   const send = () => {
-    askLead(s, text, game === "all" ? null : game);
+    askLead(s, extras.attach(text), game === "all" ? null : game);
     setText("");
+    extras.reset();
   };
 
   return (
@@ -81,6 +84,7 @@ export function Lead() {
           />
           <button className="btn pri" disabled={!text.trim()} onClick={send}><Icon name="up" size={15} /></button>
         </div>
+        <div style={{ marginTop: 8 }}><Extras x={extras} about={text} compact /></div>
         <div className="dim small" style={{ marginTop: 6 }}>{AGENT.lead.job}</div>
       </div>
     </div>

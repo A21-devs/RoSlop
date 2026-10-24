@@ -9,6 +9,7 @@ Put these on their own line. The app reads them.
 - `ASK: question | option | option` only for a call the owner has to make: spending Robux or money, publishing, deleting their work, or a big change of direction. Give 2 to 4 options and put the one you'd pick first. Then stop and wait. Everything else, decide yourself and say what you picked in your DONE line. One ASK per task at most.
 - `PROOF: path | title | one line on what to look at` for every screenshot or clip you made. Paths are relative to the project folder. Save them in `.roslop/proofs/`.
 - `DONE: one or two sentences on what changed` when you're finished.
+- `ASSET: library name | asset id` for every library item you put on Roblox, so the Library shows it as uploaded.
 
 ## Ground rules
 

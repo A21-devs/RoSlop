@@ -5,8 +5,6 @@ import { killTree, run } from "./cli";
 import { fail } from "./db";
 import { claudeParser } from "./stream";
 
-const RECENT_MIN = 15;
-
 // Updates go through one queue so two jobs finishing together don't overwrite each other.
 export class Usage {
   private queue: Promise<unknown> = Promise.resolve();
@@ -110,11 +108,4 @@ export class Usage {
     });
   }
 
-  // Fraction of a window per minute over the last stretch.
-  async recentRate(): Promise<number> {
-    const since = new Date(Date.now() - RECENT_MIN * 60_000).toISOString();
-    const { data } = await this.db.from("tasks").select("used").gte("finished_at", since);
-    const used = ((data ?? []) as { used: number }[]).reduce((sum, t) => sum + (t.used ?? 0), 0);
-    return used / RECENT_MIN;
-  }
 }
