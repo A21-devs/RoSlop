@@ -14,7 +14,7 @@ import { decide } from "./schedule";
 import { recordStats } from "./stats";
 import { Usage } from "./usage";
 import { briefVault, isVaultTask, seedVault } from "./vault";
-import { latestPull, pullGames, writeGames, type PullResult } from "./gamedata";
+import { latestPull, pullGames, tidyLinks, writeGames, type PullResult } from "./gamedata";
 
 const POLL_MS = 20_000;
 const HEARTBEAT_MS = 60_000;
@@ -401,6 +401,11 @@ export class Runner {
     this.changed();
 
     void job.done.then(() => {
+      if (vaultJob && vault) {
+        try {
+          tidyLinks(vault);
+        } catch {}
+      }
       this.jobs.delete(task.id);
       this.changed();
       this.soon();

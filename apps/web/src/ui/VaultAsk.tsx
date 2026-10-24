@@ -30,7 +30,7 @@ const IDEAS: { label: string; text: string; games?: string }[] = [
   },
   {
     label: "Clean up the vault",
-    text: "Tidy the vault: merge near copies, fix broken [[links]], add missing for: tags, and make sure every note is linked from Home.md. Don't delete anything useful.",
+    text: "Tidy the vault: delete notes about single games and fold anything useful into the topic they belong to, rewrite sentences that name games so they talk about the pattern and how many games do it, merge near copies, fix broken [[links]], add missing for: tags, and make sure every note is linked from Home.md.",
   },
 ];
 

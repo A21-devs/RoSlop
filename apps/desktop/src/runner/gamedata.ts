@@ -472,6 +472,7 @@ export function writeGames(vault: string, rows: GameRow[]): PullResult {
   } catch {}
   const charts = join(vault, "Market", `Charts ${day}.md`);
   writeFileSync(charts, chartsNote(rows, day));
+  tidyLinks(vault);
   return { count: rows.length, day, csv: join(dataDir, `games-${day}.csv`), charts, types: typeCount + genres.length };
 }
 
@@ -488,4 +489,64 @@ export function latestPull(vault: string): { day: string; csv: string; count: nu
   } catch {
     return null;
   }
+}
+
+// Notes link to topics, not games. Links to a game name (or to an old charts note) become
+// plain text, list lines that were only a game link go, and the graph stops filling up with
+// one dot per game.
+export function tidyLinks(vault: string) {
+  const pull = latestPull(vault);
+  if (!pull) return 0;
+  let rows: GameRow[] = [];
+  try {
+    rows = JSON.parse(readFileSync(join(vault, "Market", "Data", `games-${pull.day}.json`), "utf8"));
+  } catch {
+    return 0;
+  }
+  const norm = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const games = new Set(rows.flatMap(g => [norm(g.name), norm(fileName(g.name))]).filter(n => n.length > 2));
+  const notes = new Set<string>();
+  const files: string[] = [];
+  const walk = (dir: string) => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.name.startsWith(".") || (e.name === "Data" && dir.endsWith("Market"))) continue;
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith(".md")) {
+        files.push(p);
+        notes.add(norm(e.name.slice(0, -3)));
+      }
+    }
+  };
+  walk(vault);
+
+  let changed = 0;
+  const charts = `Charts ${pull.day}`;
+  for (const f of files) {
+    const text = readFileSync(f, "utf8");
+    const next = text
+      .split("\n")
+      .filter(line => {
+        const only = line.match(/^\s*[-*]\s*\[\[([^\]|]+)(?:\|[^\]]*)?\]\]\s*$/);
+        return !(only && games.has(norm(only[1])) && !notes.has(norm(only[1])));
+      })
+      .join("\n")
+      .replace(/\[\[([^\]|]+)(?:\\?\|([^\]]*))?\]\]/g, (all, target: string, alias?: string) => {
+        const t = target.trim();
+        if (/^Charts \d{4}-\d{2}-\d{2}$/.test(t) && t !== charts && !notes.has(norm(t))) return `[[${charts}]]`;
+        if (games.has(norm(t)) && !notes.has(norm(t))) return alias || t;
+        return all;
+      });
+    if (next !== text) {
+      writeFileSync(f, next);
+      changed++;
+    }
+  }
+  return changed;
 }
