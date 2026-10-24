@@ -17,6 +17,10 @@ const IDEAS: { label: string; text: string; games?: string }[] = [
     text: "Break down the UI of these games screen by screen: HUD, shop, menus, popups, buttons, fonts and colors. Screenshot each one into References/img and write what works and why. Finish with a UI rules note in Design for Frame.",
   },
   {
+    label: "VFX, modeling and building refs",
+    text: "Collect references for VFX, modeling and building, plus some for SFX and animation. Search the web, the Roblox creator store and dev forum, YouTube and ArtStation. For each topic (slashes, auras, explosions, low poly props, characters, maps, lobbies, lighting...) write one note in References/VFX, References/Modeling, References/Building, References/SFX or References/Animation, with the images downloaded into that folder's img and embedded, the source links, and what makes them work and how to get there in Roblox. Topics only, no game names.",
+  },
+  {
     label: "Thumbnails and icons",
     text: "Collect thumbnails and icons from games that are growing right now. Save them, sort them by style and write what makes people click. Make a note in Design for Splash.",
   },

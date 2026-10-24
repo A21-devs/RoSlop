@@ -26,10 +26,10 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
     lines.push(
       "",
       `Obsidian vault: ${settings.vault_path}`,
-      "- Notes are plain .md files you write straight into it. Folders: Games (our own games only), Game Types, Design, References (images in References/img), Market, Lessons.",
+      "- Notes are plain .md files you write straight into it. Folders: Games (our own games only), Game Types, Design, References (VFX, Modeling, Building, SFX, Animation, UI, each with an img folder), Market, Lessons.",
       "- Start every note with frontmatter: `for: [agent ids that should read it]` and `tags: [...]`.",
       "- Link related notes with [[Note name]], and add each new note under its heading in Home.md.",
-      "- References: search the web, keep the ones that are actually useful. One note each with the source link, what it shows and what we take from it. Download images with curl into References/img and embed them with ![[file.png]].",
+      "- References cover VFX, modeling and building most, then SFX, animation and UI, each in its own References/<topic> folder. Search the web, the Roblox creator store and dev forum, YouTube and ArtStation, keep what's actually useful, and download the images with curl into that folder's img and embed them with ![[file.png]]. One note per topic (slash VFX, low poly props, lobby layouts...) with the source links, what makes it work and how to do it in Roblox.",
       "- Short and specific beats long. Check what's there first and update a note instead of making a near copy.",
       "- Never write TBD, TODO, placeholders or made-up numbers. If you don't have a number, leave that line out.",
       isVaultTask(task)

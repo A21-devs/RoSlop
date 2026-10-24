@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AGENT, ago, type Verdict } from "@roslop/core";
-import { decide } from "../data/actions";
+import { decide, remove } from "../data/actions";
 import { useGameFilter, useSnap } from "../data/store";
-import { Av, Icon, Media, Seg, agentName } from "../ui/bits";
+import { Av, Del, Icon, Media, Seg, agentName } from "../ui/bits";
 
 type Show = "waiting" | "approved" | "changes";
 
@@ -52,13 +52,13 @@ export function Review() {
         </div>
         <div style={{ padding: "0 8px" }}>
           {list.map(x => (
-            <Link key={x.id} to={`/review/${x.id}`} className="row" style={{ gap: 10, padding: 8, borderRadius: 8, alignItems: "flex-start", background: x.id === p?.id ? "var(--raise)" : "" }}>
+            <div key={x.id} className="has-del"><Del onDelete={() => remove("proofs", x)} /><Link to={`/review/${x.id}`} className="row" style={{ gap: 10, padding: 8, borderRadius: 8, alignItems: "flex-start", background: x.id === p?.id ? "var(--raise)" : "" }}>
               <Media src={x.url} kind={x.kind} style={{ width: 86, flex: "none", borderRadius: 6 }} />
               <div className="grow">
                 <div style={{ fontWeight: 500, fontSize: 12.5, lineHeight: 1.3 }}>{x.title}</div>
                 <div className="row" style={{ marginTop: 5, gap: 6 }}><Av who={x.agent} size="sm" /><span className="muted" style={{ fontSize: 11.5 }}>{agentName(x.agent)}</span></div>
               </div>
-            </Link>
+            </Link></div>
           ))}
           {!list.length && <div className="muted small" style={{ padding: 12 }}>Nothing here.</div>}
         </div>

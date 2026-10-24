@@ -48,6 +48,12 @@ export async function decide(s: Snapshot, proof: Proof, verdict: Verdict, note: 
   }
 }
 
+// Anything can be thrown away. A running task is dropped first so the computer stops it.
+export async function remove(table: "tasks" | "assets" | "proofs" | "pitches" | "messages", row: { id: string; status?: string }) {
+  if (table === "tasks" && row.status === "working") await db.update("tasks", row.id, { status: "dropped" });
+  await db.remove(table, row.id);
+}
+
 export const pause = (t: Task) => db.update("tasks", t.id, { status: "paused" });
 export const resume = (t: Task) => db.update("tasks", t.id, { status: "queued" });
 export const drop = (t: Task) => db.update("tasks", t.id, { status: "dropped", finished_at: new Date().toISOString() });
@@ -120,7 +126,7 @@ Target: at least 200 written notes. Notes are about topics like Tycoon, Simulato
 - UI (about 20): one note per kind of screen or UI habit (shops, HUDs, popups, rebirth screens), with how many games do it and how.
 - Money (about 15): gamepass, dev product and pricing patterns, with numbers.
 - AI slop and quick games (about 20): what the quick game signs turn up, what's cheap to copy and what makes them feel cheap.
-- References (about 20): Pulse and Scenic search the web for UI, art style and systems that fit our games, screenshots saved into References/img.
+- References (about 50), with real images saved next to each note: VFX (about 12, Scenic and Librarian: particles, slashes, auras, explosions, beams, how they're built in Roblox), Modeling (about 12, Librarian: low poly styles, props, characters, topology and texture habits that look good under Roblox limits), Building (about 12, Scenic and Builder: maps, lobbies, lighting, terrain, layouts that read well), SFX (about 5), Animation (about 5, idle, run, attack, UI motion), UI (about 4). Search the web, the Roblox creator store and dev forum, YouTube and ArtStation; download the images with curl into References/<topic>/img and embed them.
 - Design rules (about 15): approved things from Review become rules, sent back things become don'ts.
 - Agent notes (about 15): short how-we-do-it notes tagged for the agents that need them.
 Every note needs \`for:\` frontmatter naming the agents that should read it, [[links]] to related notes, and a line in Home.md. Short notes are fine, empty or placeholder ones aren't. Agents should write notes in batches with a script where it helps, so it doesn't cost a full run per note.

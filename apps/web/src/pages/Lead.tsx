@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AGENT } from "@roslop/core";
-import { askLead } from "../data/actions";
+import { askLead, remove } from "../data/actions";
 import { useData, useGameFilter, useSnap } from "../data/store";
-import { Av, Icon } from "../ui/bits";
+import { Av, Del, Icon } from "../ui/bits";
 
 export function Lead() {
   const s = useSnap();
@@ -37,14 +37,16 @@ export function Lead() {
           const tasks = s.tasks.filter(t => m.task_ids.includes(t.id) && t.agent !== "lead");
           if (m.author === "you") {
             return (
-              <div key={m.id} style={{ alignSelf: "flex-end", maxWidth: "74%" }} className="col">
+              <div key={m.id} style={{ alignSelf: "flex-end", maxWidth: "74%" }} className="col has-del">
+                <Del onDelete={() => remove("messages", m)} />
                 <div className="bubble me" style={{ maxWidth: "100%" }}>{m.text}</div>
                 <span className="mono dim" style={{ alignSelf: "flex-end" }}>sent to {worker?.name ?? "your worker"}</span>
               </div>
             );
           }
           return (
-            <div key={m.id} className="row" style={{ alignItems: "flex-start", gap: 10 }}>
+            <div key={m.id} className="row has-del" style={{ alignItems: "flex-start", gap: 10 }}>
+              <Del onDelete={() => remove("messages", m)} />
               <Av who={m.author} />
               <div className="bubble them">
                 {m.text}

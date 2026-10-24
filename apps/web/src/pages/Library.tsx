@@ -1,15 +1,20 @@
 import { useRef, useState } from "react";
 import type { AssetKind } from "@roslop/core";
-import { messageAgent, uploadAsset } from "../data/actions";
-import { useData, useGameFilter, useSnap } from "../data/store";
-import { Empty, Icon, Media, Seg } from "../ui/bits";
+import { messageAgent, remove, uploadAsset } from "../data/actions";
+import { toast, useData, useGameFilter, useSnap } from "../data/store";
+import { Del, Empty, Icon, Media, Seg } from "../ui/bits";
 
 type Tab = "assets" | "references";
 const KINDS: (AssetKind | "all")[] = ["all", "icon", "model", "sound", "vfx", "ui"];
 
+// Uploads on the All tab go wherever the file name points.
 function guessKind(f: File): AssetKind {
-  if (/\.(fbx|obj|rbxm|rbxmx|glb|gltf)$/i.test(f.name)) return "model";
-  if (/^audio\//.test(f.type) || /\.(mp3|ogg|wav)$/i.test(f.name)) return "sound";
+  const n = f.name.toLowerCase();
+  if (/\.(fbx|obj|rbxm|rbxmx|glb|gltf|blend|dae|stl)$/.test(n)) return "model";
+  if (/^audio\//.test(f.type) || /\.(mp3|ogg|wav|flac|m4a)$/.test(n) || /(^|[^a-z])(sfx|sound|music|audio)([^a-z]|$)/.test(n)) return "sound";
+  if (/vfx|fx[_\- .]|particle|effect|flipbook|spritesheet|explosion|smoke|fire|flame|spark|trail|beam|aura|glow|slash|impact|magic|lightning|shockwave/.test(n)) return "vfx";
+  if (/(^|[^a-z])(ui|gui|hud)([^a-z]|$)|button|btn|frame|menu|panel|window|popup|shop|bar|slot|inventory|screen|layout|tab|card|badge|banner|title/.test(n)) return "ui";
+  if (/model|mesh|prop|rig|character/.test(n)) return "model";
   return "icon";
 }
 
@@ -32,7 +37,7 @@ export function Library() {
     setBusy(n => n + list.length);
     for (const f of list) {
       try {
-        await uploadAsset(f, tab === "references" ? "reference" : guessKind(f), game === "all" ? null : game);
+        await uploadAsset(f, tab === "references" ? "reference" : kind !== "all" ? kind : guessKind(f), game === "all" ? null : game);
       } finally {
         setBusy(n => n - 1);
       }
@@ -65,13 +70,14 @@ export function Library() {
       </div>
       <div className="card flat pad row" style={{ borderStyle: "dashed", marginBottom: 16, gap: 14 }}>
         <Icon name="upload" size={20} style={{ color: "var(--accent-text)" }} />
-        <div className="grow"><b>Drop files anywhere on this page.</b> <span className="muted">Images, .fbx, .obj, .rbxm, sounds. Librarian puts them on Roblox and adds the asset id, then the crew can use them.</span></div>
+        <div className="grow"><b>Drop files anywhere on this page.</b>{tab === "assets" && kind !== "all" && <> They go in <b>{kind === "ui" ? "UI" : kind === "vfx" ? "VFX" : `${kind}s`}</b>.</>} <span className="muted">Images, .fbx, .obj, .rbxm, sounds. Librarian puts them on Roblox and adds the asset id, then the crew can use them.</span></div>
         {busy > 0 && <span className="row muted small"><span className="dot pulse" />{busy} uploading</span>}
       </div>
       {!shown.length ? <Empty>Nothing here yet.</Empty> : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
           {shown.map(a => (
-            <div key={a.id} className="card flat" style={{ padding: 10 }}>
+            <div key={a.id} className="card flat has-del" style={{ padding: 10 }}>
+              <Del onDelete={() => remove("assets", a).then(() => toast(`Deleted ${a.name}`))} />
               {a.file_url ? <Media src={a.file_url} style={{ aspectRatio: "1", background: "var(--raise)" }} /> : <div style={{ aspectRatio: "1", background: "var(--raise)", borderRadius: 8 }} />}
               <div className="row" style={{ marginTop: 8 }}><b className="grow trunc">{a.name}</b><span className="pill" style={{ height: 18, fontSize: 10 }}>{a.kind}</span></div>
               <div className={`mono ${a.roblox_id ? "dim" : "warn"}`} style={{ marginTop: 3 }}>{a.kind === "reference" ? "reference" : a.roblox_id ? `rbx ${a.roblox_id}` : "not on Roblox yet"}</div>
