@@ -8,7 +8,7 @@ import { createInterface } from "node:readline";
 import { killTree, run } from "./cli";
 import { claudeArgs, codexArgs, mcpConfig } from "./commands";
 import { onServers } from "./mcp";
-import { fail } from "./db";
+import { allRows, fail } from "./db";
 import type { Events } from "./events";
 import { saveMarket } from "./market";
 import { savePlan } from "./plan";
@@ -173,8 +173,13 @@ export class Job {
   private async asset(a: { name: string; id: string }) {
     const { db, userId, events } = this.deps;
     try {
-      const { data } = await db.from("assets").select("id, name").is("roblox_id", null).ilike("name", a.name.replace(/[%_]/g, "\\$&"));
-      const row = (data ?? [])[0] as { id: string } | undefined;
+      // Agents sometimes tidy a name or keep the file extension, so match loosely.
+      const norm = (s: string) => s.toLowerCase().replace(/\.[a-z0-9]+$/, "").replace(/[^a-z0-9]+/g, "");
+      const want = norm(a.name);
+      const { data } = await allRows<{ id: string; name: string; file_url: string | null }>(db.from("assets").select("id, name, file_url").is("roblox_id", null).order("created_at").order("id"));
+      const rows = data ?? [];
+      const file = (r: { file_url: string | null }) => norm((r.file_url ?? "").split("/").pop()?.replace(/^\d+-/, "") ?? "");
+      const row = rows.find(r => norm(r.name) === want) ?? rows.find(r => file(r) === want) ?? rows.find(r => want.length > 3 && (norm(r.name).includes(want) || want.includes(norm(r.name))));
       if (row) await db.from("assets").update({ roblox_id: a.id }).eq("id", row.id);
       else await db.from("assets").insert({ user_id: userId, name: a.name, kind: assetKind(a.name), roblox_id: a.id, file_url: null, tags: [], game_id: this.task.game_id });
       events.add(this.task.id, "note", `${a.name} is on Roblox as ${a.id}`);

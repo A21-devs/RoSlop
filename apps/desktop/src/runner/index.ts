@@ -3,7 +3,7 @@ import { app } from "electron";
 import { estimate, serverFor, windowElapsed, WINDOW_MIN, type Game, type Machine, type RunnerStatus, type Settings, type Task } from "@roslop/core";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { allKeys } from "../keys";
+import { allKeys, getKey } from "../keys";
 import { cliFound } from "./cli";
 import { listServers } from "./mcp";
 import { connect, fail, loadSettings, Tokens, withDefaults, type Auth } from "./db";
@@ -17,6 +17,7 @@ import { briefVault, isVaultTask, seedVault } from "./vault";
 import { fetchRefs } from "./refs";
 import { crewReport } from "./crew";
 import { allRows } from "./db";
+import { RobloxUploads } from "./roblox";
 import { latestPull, pullGames, tidyLinks, writeGames, type PullResult } from "./gamedata";
 
 const POLL_MS = 20_000;
@@ -32,6 +33,7 @@ interface Live {
   settings: Settings;
   events: Events;
   usage: Usage;
+  uploads: RobloxUploads;
   channel: RealtimeChannel;
   timers: NodeJS.Timeout[];
 }
@@ -69,6 +71,7 @@ export class Runner {
       working: jobs.map(j => j.task.title),
       last_error: this.lastError,
       cli_detail: this.cliDetail,
+      uploads: this.live ? this.live.uploads.state : null,
       note: this.live ? this.note : this.lastError ? "The crew couldn't start." : "The crew isn't running yet.",
     };
   }
@@ -110,6 +113,7 @@ export class Runner {
         tokens, db, userId, machine, settings,
         events: new Events(db, userId),
         usage: new Usage(db, userId),
+        uploads: new RobloxUploads(db, () => this.changed()),
         channel: this.subscribe(db, userId),
         timers: [],
       };
@@ -119,7 +123,9 @@ export class Runner {
         setInterval(() => this.tick(), POLL_MS),
         setInterval(() => void heartbeat(db, machine.id, live.settings.provider).catch(e => this.error(e)), HEARTBEAT_MS),
         setInterval(() => void recordStats(db, userId).catch(() => {}), STATS_MS),
+        setInterval(() => this.uploadAssets(), 30_000),
       );
+      this.uploadAssets();
       void recordStats(db, userId).catch(() => {});
       this.lastError = null;
       this.tick();
@@ -243,6 +249,16 @@ export class Runner {
       }
     })();
     return this.pulling;
+  }
+
+  // Only the computer doing the work uploads, so two machines don't both put a file on Roblox.
+  private uploadAssets() {
+    const live = this.live;
+    if (!live || live.machine.role !== "worker") return;
+    void live.uploads.tick(getKey("roblox_open_cloud"), getKey("roblox_creator")).catch(e => {
+      live.uploads.state.error = (e as Error).message;
+      this.changed();
+    });
   }
 
   private say(note: string | null) {

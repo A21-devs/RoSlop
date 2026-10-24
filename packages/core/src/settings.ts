@@ -60,6 +60,7 @@ export function blenderBrief(r: BlenderRules): string {
 // Keys never leave the computer that runs the agents.
 export const KEYS = [
   { id: "roblox_open_cloud", name: "Roblox Open Cloud", use: "Publishing, DataStores and uploads" },
+  { id: "roblox_creator", name: "Roblox creator id", use: "Who owns uploads: your user id, or group:123 for a group" },
   { id: "rowatcher", name: "RoWatcher", use: "Market and Pitches data, if you have access" },
   { id: "discord_webhook", name: "Discord webhook", use: "Optional. Posts approvals to a channel" },
 ] as const;

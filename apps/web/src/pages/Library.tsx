@@ -1,21 +1,44 @@
-import { useRef, useState } from "react";
-import type { AssetKind } from "@roslop/core";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { assetKind, type AssetKind, type RunnerStatus } from "@roslop/core";
 import { messageAgent, remove, uploadAsset } from "../data/actions";
-import { toast, useData, useGameFilter, useSnap } from "../data/store";
+import { db, toast, useData, useGameFilter, useSnap } from "../data/store";
 import { Del, Empty, Icon, Media, Seg } from "../ui/bits";
 
 type Tab = "assets" | "references";
 const KINDS: (AssetKind | "all")[] = ["all", "icon", "model", "sound", "vfx", "ui"];
 
-// Uploads on the All tab go wherever the file name points.
-function guessKind(f: File): AssetKind {
-  const n = f.name.toLowerCase();
-  if (/\.(fbx|obj|rbxm|rbxmx|glb|gltf|blend|dae|stl)$/.test(n)) return "model";
-  if (/^audio\//.test(f.type) || /\.(mp3|ogg|wav|flac|m4a)$/.test(n) || /(^|[^a-z])(sfx|sound|music|audio)([^a-z]|$)/.test(n)) return "sound";
-  if (/vfx|fx[_\- .]|particle|effect|flipbook|spritesheet|explosion|smoke|fire|flame|spark|trail|beam|aura|glow|slash|impact|magic|lightning|shockwave/.test(n)) return "vfx";
-  if (/(^|[^a-z])(ui|gui|hud)([^a-z]|$)|button|btn|frame|menu|panel|window|popup|shop|bar|slot|inventory|screen|layout|tab|card|badge|banner|title/.test(n)) return "ui";
-  if (/model|mesh|prop|rig|character/.test(n)) return "model";
-  return "icon";
+
+// Already on Roblox some other way? Paste the id or the link.
+async function setId(a: { id: string; name: string; roblox_id: string | null }) {
+  const text = prompt(`Roblox asset id or link for ${a.name}`, a.roblox_id ?? "");
+  if (text === null) return;
+  const id = text.match(/\d{5,}/)?.[0] ?? null;
+  if (text.trim() && !id) return toast("That doesn't look like an asset id or link.", true);
+  await db.update("assets", a.id, { roblox_id: id });
+  toast(id ? `${a.name} marked as on Roblox` : `Cleared the id on ${a.name}`);
+}
+
+function useUploads() {
+  const [state, setState] = useState<RunnerStatus["uploads"]>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (!window.roslop) return;
+    let alive = true;
+    const poll = async () => {
+      const [st, key, creator] = await Promise.all([window.roslop!.status(), window.roslop!.getKey("roblox_open_cloud"), window.roslop!.getKey("roblox_creator")]);
+      if (!alive) return;
+      setState(st.uploads);
+      setReady(!!key && !!creator);
+    };
+    void poll();
+    const t = setInterval(poll, 5000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+  return { state, ready };
 }
 
 export function Library() {
@@ -26,6 +49,7 @@ export function Library() {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(0);
   const input = useRef<HTMLInputElement>(null);
+  const up = useUploads();
   const assets = useGameFilter(s.assets);
   const shown = assets.filter(a => (tab === "references" ? a.kind === "reference" : a.kind !== "reference"))
     .filter(a => tab === "references" || kind === "all" || a.kind === kind)
@@ -37,12 +61,13 @@ export function Library() {
     setBusy(n => n + list.length);
     for (const f of list) {
       try {
-        await uploadAsset(f, tab === "references" ? "reference" : kind !== "all" ? kind : guessKind(f), game === "all" ? null : game);
+        await uploadAsset(f, tab === "references" ? "reference" : kind !== "all" ? kind : assetKind(f.name, f.type), game === "all" ? null : game);
       } finally {
         setBusy(n => n - 1);
       }
     }
-    if (tab === "assets") {
+    // With a key on this computer RoSlop uploads them itself; otherwise the Librarian does it.
+    if (tab === "assets" && !up.ready) {
       const names = list.map(f => f.name).join(", ");
       await messageAgent(s, "librarian", `Put ${list.length === 1 ? list[0].name : `${list.length} uploads`} on Roblox`, `I just added these to the library: ${names}. Upload them to Roblox with Open Cloud and print an ASSET line with the library name and asset id for each one, so the Library marks them as uploaded.`, game === "all" ? null : game);
     }
@@ -73,6 +98,14 @@ export function Library() {
         <div className="grow"><b>Drop files anywhere on this page.</b>{tab === "assets" && kind !== "all" && <> They go in <b>{kind === "ui" ? "UI" : kind === "vfx" ? "VFX" : `${kind}s`}</b>.</>} <span className="muted">Images, .fbx, .obj, .rbxm, sounds. Librarian puts them on Roblox and adds the asset id, then the crew can use them.</span></div>
         {busy > 0 && <span className="row muted small"><span className="dot pulse" />{busy} uploading</span>}
       </div>
+      {window.roslop && tab === "assets" && (
+        <div className={`small ${up.state?.error ? "warn" : "muted"}`} style={{ margin: "-6px 0 14px" }}>
+          {!up.ready ? <>RoSlop can put these on Roblox itself, for free and with no limit. Add your Open Cloud key and creator id in <Link to="/settings/keys" className="acc">Settings, Keys</Link>.</>
+            : up.state?.error ? up.state.error
+            : up.state && up.state.left > 0 ? <><span className="dot pulse" /> Putting {up.state.left.toLocaleString()} on Roblox{up.state.done ? `, ${up.state.done.toLocaleString()} done so far` : ""}.</>
+            : "Everything with a file is on Roblox. New uploads go up within a minute."}
+        </div>
+      )}
       {!shown.length ? <Empty>Nothing here yet.</Empty> : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
           {shown.map(a => (
@@ -80,7 +113,11 @@ export function Library() {
               <Del onDelete={() => remove("assets", a).then(() => toast(`Deleted ${a.name}`))} />
               {a.file_url ? <Media src={a.file_url} style={{ aspectRatio: "1", background: "var(--raise)" }} /> : <div style={{ aspectRatio: "1", background: "var(--raise)", borderRadius: 8 }} />}
               <div className="row" style={{ marginTop: 8 }}><b className="grow trunc">{a.name}</b><span className="pill" style={{ height: 18, fontSize: 10 }}>{a.kind}</span></div>
-              <div className={`mono ${a.roblox_id ? "dim" : "warn"}`} style={{ marginTop: 3 }}>{a.kind === "reference" ? "reference" : a.roblox_id ? `rbx ${a.roblox_id}` : "not on Roblox yet"}</div>
+              {a.kind === "reference" ? <div className="mono dim" style={{ marginTop: 3 }}>reference</div> : (
+                <button className={`mono ${a.roblox_id ? "dim" : "warn"}`} style={{ marginTop: 3, textAlign: "left" }} title="Set the Roblox asset id by hand" onClick={() => setId(a)}>
+                  {a.roblox_id ? `rbx ${a.roblox_id}` : "not on Roblox yet"}
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -324,6 +324,12 @@ function Keys() {
           <li>Add your experiences and give it Place publishing, DataStore read and write, and Assets read and write.</li>
           <li>Copy it straight away, Roblox only shows it once.</li>
         </ol>
+        <b style={{ display: "block", marginTop: 10 }}>Your Roblox creator id</b>
+        <ol className="muted" style={{ paddingLeft: 18, marginTop: 6 }}>
+          <li>Uploads to you: open your Roblox profile, the number in the link is your id (roblox.com/users/<b>123456</b>/profile). Paste just the number.</li>
+          <li>Uploads to a group: open the group page and paste <span className="mono">group:</span> plus the number from its link, like <span className="mono">group:7654321</span>. The key has to be made for that group.</li>
+          <li>With both saved, RoSlop puts every Library upload on Roblox itself and fills in the ids. It uses none of your Claude usage.</li>
+        </ol>
       </div>
     </>
   );

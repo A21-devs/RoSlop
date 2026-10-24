@@ -15,6 +15,8 @@ export interface RunnerStatus {
   cli_detail: string | null;
   // Plain words on why nothing is starting, when that's the case.
   note: string | null;
+  // Library files going up to Roblox through Open Cloud.
+  uploads: { left: number; done: number; error: string | null } | null;
 }
 
 export interface DesktopBridge {
