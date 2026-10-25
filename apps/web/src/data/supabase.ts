@@ -149,6 +149,23 @@ export function cloudDb(url: string, anonKey: string): Db {
       check(error);
       emit({ table, row: { id }, gone: true });
     },
+    async clearAssets(which) {
+      const rows: { id: string; file_url: string | null }[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const base = sb.from("assets").select("id, file_url").order("id");
+        const { data, error } = await (which === "references" ? base.eq("kind", "reference") : base.neq("kind", "reference")).range(from, from + PAGE - 1);
+        check(error);
+        rows.push(...(data ?? []));
+        if (!data || data.length < PAGE) break;
+      }
+      const del = sb.from("assets").delete();
+      check((await (which === "references" ? del.eq("kind", "reference") : del.neq("kind", "reference"))).error);
+      // Stored files go too, so they stop taking up space. Roblox copies stay on Roblox.
+      const files = rows.map(r => r.file_url).filter((p): p is string => !!p && !/^(https?|data|blob):/.test(p));
+      for (let i = 0; i < files.length; i += PAGE) await sb.storage.from("files").remove(files.slice(i, i + PAGE));
+      for (const r of rows) emit({ table: "assets", row: { id: r.id }, gone: true });
+      return rows.length;
+    },
     async saveSettings(patch) {
       emit({ table: "settings", row: patch as Settings });
       const { error } = await sb.from("settings").update(patch).eq("user_id", current!.id);

@@ -365,6 +365,22 @@ function Provider() {
 
 function Account() {
   const { user } = useData();
+  const s = useSnap();
+  const [clearing, setClearing] = useState(false);
+  const counts = { assets: s.assets.filter(a => a.kind !== "reference").length, references: s.assets.filter(a => a.kind === "reference").length };
+  const clear = async (which: "assets" | "references") => {
+    const label = which === "assets" ? "Library assets" : "references";
+    if (!confirm(`Delete all ${counts[which].toLocaleString()} ${label} and their files? This can't be undone. Anything already on Roblox stays on Roblox.`)) return;
+    setClearing(true);
+    try {
+      const n = await db.clearAssets(which);
+      toast(`Deleted ${n.toLocaleString()} ${label}`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), true);
+    } finally {
+      setClearing(false);
+    }
+  };
   return (
     <>
       <h1 className="page">Account</h1>
@@ -372,6 +388,14 @@ function Account() {
       <div className="row" style={{ marginTop: 18 }}>
         <button className="btn" onClick={() => db.signOut()}>Sign out</button>
         {db.mode === "demo" && <button className="btn ghost" onClick={resetDemo}>Reset the demo</button>}
+      </div>
+      <div className="card pad col" style={{ marginTop: 24, gap: 10, borderColor: "color-mix(in srgb, var(--bad) 40%, var(--line))" }}>
+        <b>Clear the Library</b>
+        <div className="muted small">Deletes the entries and the uploaded files from your Supabase project, on every device. Copies already on Roblox aren't touched.</div>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <button className="btn danger" disabled={clearing || !counts.assets} onClick={() => clear("assets")}>{clearing ? "Deleting…" : `Delete all assets (${counts.assets.toLocaleString()})`}</button>
+          <button className="btn danger" disabled={clearing || !counts.references} onClick={() => clear("references")}>Delete all references ({counts.references.toLocaleString()})</button>
+        </div>
       </div>
     </>
   );

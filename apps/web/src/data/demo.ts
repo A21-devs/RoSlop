@@ -79,6 +79,12 @@ export function demoDb(): Db {
       snap = { ...snap, [table]: (snap[table] as { id: string }[]).filter(r => r.id !== id) };
       emit({ table, row: { id }, gone: true });
     },
+    async clearAssets(which) {
+      const gone = snap.assets.filter(a => (which === "references") === (a.kind === "reference"));
+      snap = { ...snap, assets: snap.assets.filter(a => !gone.includes(a)) };
+      for (const a of gone) emit({ table: "assets", row: { id: a.id }, gone: true });
+      return gone.length;
+    },
     async saveSettings(patch: Partial<Settings>) {
       snap = { ...snap, settings: { ...snap.settings, ...patch } };
       emit({ table: "settings", row: snap.settings });
