@@ -4,6 +4,7 @@ import { assetKind, type AssetKind, type RunnerStatus } from "@roslop/core";
 import { messageAgent, remove, uploadAsset } from "../data/actions";
 import { db, toast, useData, useGameFilter, useSnap } from "../data/store";
 import { Del, Empty, Icon, Media, Seg } from "../ui/bits";
+import { openViewer } from "../ui/Viewer";
 
 type Tab = "assets" | "references";
 const KINDS: (AssetKind | "all")[] = ["all", "icon", "model", "sound", "vfx", "ui"];
@@ -174,7 +175,7 @@ export function Library() {
       )}
       <div className="card flat pad row" style={{ borderStyle: "dashed", marginBottom: 16, gap: 14 }}>
         <Icon name="upload" size={20} style={{ color: "var(--accent-text)" }} />
-        <div className="grow"><b>Drop files anywhere on this page.</b>{tab === "assets" && kind !== "all" && <> They go in <b>{kind === "ui" ? "UI" : kind === "vfx" ? "VFX" : `${kind}s`}</b>.</>} <span className="muted">Images, .fbx, .obj, .rbxm, sounds. Librarian puts them on Roblox and adds the asset id, then the crew can use them.</span></div>
+        <div className="grow"><b>Drop files anywhere on this page.</b> <span className="muted">Double-click anything to look closer.</span>{tab === "assets" && kind !== "all" && <> They go in <b>{kind === "ui" ? "UI" : kind === "vfx" ? "VFX" : `${kind}s`}</b>.</>} <span className="muted">Images, .fbx, .obj, .rbxm, sounds. Librarian puts them on Roblox and adds the asset id, then the crew can use them.</span></div>
         {busy > 0 && <span className="row muted small"><span className="dot pulse" />{busy} uploading</span>}
       </div>
       {window.roslop && tab === "assets" && (
@@ -193,6 +194,10 @@ export function Library() {
               className={`card flat has-del pickable ${picked.has(a.id) ? "picked" : ""} ${picked.size ? "picking" : ""}`}
               style={{ padding: 10, cursor: "pointer", userSelect: "none" }}
               onClick={e => pick(a.id, e.shiftKey)}
+              onDoubleClick={() => {
+                const withFiles = shown.filter(x => x.file_url);
+                if (a.file_url) openViewer(withFiles.map(x => ({ src: x.file_url!, title: x.name })), withFiles.indexOf(a));
+              }}
             >
               <span className="check"><Icon name="check" size={11} /></span>
               <Del onDelete={() => remove("assets", a).then(() => toast(`Deleted ${a.name}`))} />

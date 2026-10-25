@@ -238,3 +238,17 @@ h1.page { font-size: 26px; font-weight: 600; letter-spacing: -0.03em; line-heigh
   .lead-scroll { padding: 16px 14px 10px; }
   .lead-compose { padding: 10px 14px calc(84px + env(safe-area-inset-bottom)); }
 }
+
+.viewer { position: fixed; inset: 0; z-index: 100; background: rgba(5, 6, 9, .92); display: flex; flex-direction: column; }
+.viewer-bar { position: relative; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 10px 16px; color: #fff; background: rgb(5, 6, 9); border-bottom: 1px solid rgba(255, 255, 255, .08); }
+.viewer-bar .btn { color: #e8e8ea; }
+.viewer-stage { flex: 1; min-height: 0; overflow: hidden; display: grid; place-items: center; touch-action: none; user-select: none; }
+.viewer-stage img { max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center; transition: transform .06s linear; will-change: transform; }
+.viewer-nav { position: absolute; top: 50%; width: 44px; height: 44px; margin-top: -22px; border-radius: 99px; display: grid; place-items: center; color: #fff; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); }
+.viewer-nav:hover { background: rgba(255, 255, 255, .16); }
+.viewer-nav.l { left: 16px; }
+.viewer-nav.r { right: 16px; }
+.viewer-hint { position: relative; z-index: 2; text-align: center; padding: 8px; background: rgb(5, 6, 9); }
+@media (max-width: 860px) { .viewer-hint { display: none; } }
+.media.zoomable { cursor: zoom-in; }
+.media.zoomable:hover img { filter: brightness(1.06); }

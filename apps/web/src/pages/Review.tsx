@@ -4,6 +4,7 @@ import { AGENT, ago, type Verdict } from "@roslop/core";
 import { decide, remove } from "../data/actions";
 import { useGameFilter, useSnap } from "../data/store";
 import { Av, Del, Icon, Media, Seg, agentName } from "../ui/bits";
+import { openViewer } from "../ui/Viewer";
 
 type Show = "waiting" | "approved" | "changes";
 
@@ -74,7 +75,7 @@ export function Review() {
               <button className="btn sm ghost" onClick={() => go(1)}><Icon name="right" size={14} /></button>
             </div>
             <div className="card" style={{ padding: 10, background: "#0a0a09" }}>
-              <Media src={p.url} kind={p.kind} style={{ aspectRatio: "auto", minHeight: 240 }} />
+              <Media src={p.url} kind={p.kind} style={{ aspectRatio: "auto", minHeight: 240 }} onOpen={() => openViewer(list.map(x => ({ src: x.url, kind: x.kind, title: x.title })), Math.max(0, list.findIndex(x => x.id === p.id)))} />
             </div>
             <span className="muted small hide-m">A to approve, C to write a note, R to reject, arrows to move.</span>
           </div>
