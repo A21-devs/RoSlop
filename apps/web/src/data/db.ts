@@ -26,6 +26,8 @@ export interface Db {
   insert<T extends TableName>(table: T, row: Partial<Tables[T]>): Promise<Tables[T]>;
   update<T extends TableName>(table: T, id: string, patch: Partial<Tables[T]>): Promise<void>;
   remove(table: TableName, id: string): Promise<void>;
+  updateMany<T extends TableName>(table: T, ids: string[], patch: Partial<Tables[T]>): Promise<void>;
+  removeMany(table: TableName, ids: string[]): Promise<void>;
   // Every Library item of that sort, files included. Returns how many went.
   clearAssets(which: "assets" | "references"): Promise<number>;
   saveSettings(patch: Partial<Settings>): Promise<void>;

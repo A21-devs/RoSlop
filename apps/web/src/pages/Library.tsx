@@ -50,10 +50,72 @@ export function Library() {
   const [busy, setBusy] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const up = useUploads();
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [anchor, setAnchor] = useState<string | null>(null);
   const assets = useGameFilter(s.assets);
   const shown = assets.filter(a => (tab === "references" ? a.kind === "reference" : a.kind !== "reference"))
     .filter(a => tab === "references" || kind === "all" || a.kind === kind)
     .filter(a => !q || a.name.toLowerCase().includes(q.toLowerCase()) || a.roblox_id?.includes(q));
+
+  // Click to pick, shift-click to pick everything between that and the last one.
+  const pick = (id: string, range: boolean) => {
+    setPicked(prev => {
+      const next = new Set(prev);
+      if (range && anchor) {
+        const a = shown.findIndex(x => x.id === anchor);
+        const b = shown.findIndex(x => x.id === id);
+        if (a >= 0 && b >= 0) {
+          for (const x of shown.slice(Math.min(a, b), Math.max(a, b) + 1)) next.add(x.id);
+          return next;
+        }
+      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setAnchor(id);
+  };
+  const clearPick = () => {
+    setPicked(new Set());
+    setAnchor(null);
+  };
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && clearPick();
+    addEventListener("keydown", esc);
+    return () => removeEventListener("keydown", esc);
+  }, []);
+  useEffect(clearPick, [tab, kind]);
+
+  const moveTo = async (ids: string[], to: string) => {
+    if (!ids.length || !to) return;
+    const [field, value] = to.split(":");
+    const patch = field === "kind" ? { kind: value as AssetKind } : { game_id: value === "none" ? null : value };
+    await db.updateMany("assets", ids, patch);
+    const where = field === "kind" ? (value === "reference" ? "References" : value === "ui" ? "UI" : value === "vfx" ? "VFX" : `${value}s`) : value === "none" ? "no game" : s.games.find(g => g.id === value)?.name;
+    toast(`Moved ${ids.length.toLocaleString()} to ${where}`);
+    clearPick();
+  };
+  const deleteMany = async (ids: string[]) => {
+    if (!ids.length || !confirm(`Delete ${ids.length.toLocaleString()} item${ids.length > 1 ? "s" : ""}? Copies on Roblox stay.`)) return;
+    await db.removeMany("assets", ids);
+    toast(`Deleted ${ids.length.toLocaleString()}`);
+    clearPick();
+  };
+  const moveOptions = (
+    <>
+      <optgroup label="Tab">
+        {(["icon", "model", "sound", "vfx", "ui", "reference"] as AssetKind[]).map(k => (
+          <option key={k} value={`kind:${k}`}>{k === "reference" ? "References" : k === "ui" ? "UI" : k === "vfx" ? "VFX" : `${k[0].toUpperCase()}${k.slice(1)}s`}</option>
+        ))}
+      </optgroup>
+      {s.games.length > 0 && (
+        <optgroup label="Game">
+          <option value="game:none">No game</option>
+          {s.games.map(g => <option key={g.id} value={`game:${g.id}`}>{g.name}</option>)}
+        </optgroup>
+      )}
+    </>
+  );
 
   const add = async (files: FileList | null) => {
     if (!files) return;
@@ -91,8 +153,25 @@ export function Library() {
         <Seg value={tab} onChange={setTab} options={[["assets", <>Assets <span className="mono">{assets.filter(a => a.kind !== "reference").length}</span></>], ["references", <>References <span className="mono">{assets.filter(a => a.kind === "reference").length}</span></>]]} />
         {tab === "assets" && <Seg value={kind} onChange={setKind} options={KINDS.map(k => [k, k === "all" ? "All" : k === "vfx" ? "VFX" : k === "ui" ? "UI" : `${k[0].toUpperCase()}${k.slice(1)}s`])} />}
         <div className="grow" />
+        <select className="input" style={{ width: 170 }} value="" disabled={!shown.length} onChange={e => moveTo(shown.map(a => a.id), e.target.value)}>
+          <option value="">Move all {shown.length.toLocaleString()} to…</option>
+          {moveOptions}
+        </select>
         <input className="input" style={{ width: 240 }} placeholder="Search names or asset ids" value={q} onChange={e => setQ(e.target.value)} />
       </div>
+      {picked.size > 0 && (
+        <div className="card row wrap" style={{ position: "sticky", top: 8, zIndex: 5, padding: "8px 12px", marginBottom: 12, gap: 8, borderColor: "var(--accent)" }}>
+          <b>{picked.size.toLocaleString()} selected</b>
+          <button className="btn sm ghost" onClick={() => setPicked(new Set(shown.map(a => a.id)))}>Select all {shown.length.toLocaleString()}</button>
+          <div className="grow" />
+          <select className="input" style={{ width: 150, minHeight: 28 }} value="" onChange={e => moveTo([...picked], e.target.value)}>
+            <option value="">Move to…</option>
+            {moveOptions}
+          </select>
+          <button className="btn sm danger" onClick={() => deleteMany([...picked])}>Delete</button>
+          <button className="btn sm ghost" onClick={clearPick}>Clear</button>
+        </div>
+      )}
       <div className="card flat pad row" style={{ borderStyle: "dashed", marginBottom: 16, gap: 14 }}>
         <Icon name="upload" size={20} style={{ color: "var(--accent-text)" }} />
         <div className="grow"><b>Drop files anywhere on this page.</b>{tab === "assets" && kind !== "all" && <> They go in <b>{kind === "ui" ? "UI" : kind === "vfx" ? "VFX" : `${kind}s`}</b>.</>} <span className="muted">Images, .fbx, .obj, .rbxm, sounds. Librarian puts them on Roblox and adds the asset id, then the crew can use them.</span></div>
@@ -109,12 +188,21 @@ export function Library() {
       {!shown.length ? <Empty>Nothing here yet.</Empty> : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
           {shown.map(a => (
-            <div key={a.id} className="card flat has-del" style={{ padding: 10 }}>
+            <div
+              key={a.id}
+              className={`card flat has-del pickable ${picked.has(a.id) ? "picked" : ""} ${picked.size ? "picking" : ""}`}
+              style={{ padding: 10, cursor: "pointer", userSelect: "none" }}
+              onClick={e => pick(a.id, e.shiftKey)}
+            >
+              <span className="check"><Icon name="check" size={11} /></span>
               <Del onDelete={() => remove("assets", a).then(() => toast(`Deleted ${a.name}`))} />
               {a.file_url ? <Media src={a.file_url} style={{ aspectRatio: "1", background: "var(--raise)" }} /> : <div style={{ aspectRatio: "1", background: "var(--raise)", borderRadius: 8 }} />}
               <div className="row" style={{ marginTop: 8 }}><b className="grow trunc">{a.name}</b><span className="pill" style={{ height: 18, fontSize: 10 }}>{a.kind}</span></div>
               {a.kind === "reference" ? <div className="mono dim" style={{ marginTop: 3 }}>reference</div> : (
-                <button className={`mono ${a.roblox_id ? "dim" : "warn"}`} style={{ marginTop: 3, textAlign: "left" }} title="Set the Roblox asset id by hand" onClick={() => setId(a)}>
+                <button className={`mono ${a.roblox_id ? "dim" : "warn"}`} style={{ marginTop: 3, textAlign: "left" }} title="Set the Roblox asset id by hand" onClick={e => {
+                  e.stopPropagation();
+                  setId(a);
+                }}>
                   {a.roblox_id ? `rbx ${a.roblox_id}` : "not on Roblox yet"}
                 </button>
               )}

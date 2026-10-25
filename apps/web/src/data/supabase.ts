@@ -149,6 +149,21 @@ export function cloudDb(url: string, anonKey: string): Db {
       check(error);
       emit({ table, row: { id }, gone: true });
     },
+    async updateMany(table, ids, patch) {
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        const { data, error } = await sb.from(table).update(patch as never).in("id", chunk).select();
+        check(error);
+        for (const row of data ?? []) emit({ table, row } as Change);
+      }
+    },
+    async removeMany(table, ids) {
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        check((await sb.from(table).delete().in("id", chunk)).error);
+        for (const id of chunk) emit({ table, row: { id }, gone: true });
+      }
+    },
     async clearAssets(which) {
       const rows: { id: string; file_url: string | null }[] = [];
       for (let from = 0; ; from += PAGE) {
