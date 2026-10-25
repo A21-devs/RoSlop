@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { modelFor, readSignals, stripPlan, tokensToWindow, type Ask, type Game, type Settings, type Task } from "@roslop/core";
+import { assetKind, modelFor, readSignals, stripPlan, tokensToWindow, type Ask, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
 import type { ChildProcess } from "node:child_process";
 import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,13 +8,14 @@ import { createInterface } from "node:readline";
 import { killTree, run } from "./cli";
 import { claudeArgs, codexArgs, mcpConfig } from "./commands";
 import { onServers } from "./mcp";
-import { fail } from "./db";
+import { allRows, fail } from "./db";
 import type { Events } from "./events";
 import { saveMarket } from "./market";
 import { savePlan } from "./plan";
 import { keyEnvName, systemPrompt } from "./prompt";
 import { uploadProof } from "./proofs";
 import { sessions } from "./store";
+import { isVaultTask } from "./vault";
 import { claudeParser, codexParser, type Parser, type StreamEvent } from "./stream";
 import type { Usage } from "./usage";
 
@@ -28,6 +29,9 @@ export interface JobDeps {
   usage: Usage;
   keys: Record<string, string>;
   history: Pick<Task, "agent" | "used" | "status">[];
+  // The Lead gets a report on the whole crew with every message.
+  crew?: string | null;
+  lane?: StudioLane | null;
 }
 
 const STDERR_KEEP = 4000;
@@ -42,6 +46,14 @@ export class Job {
   private ended = false;
   private ask: Ask | null = null;
   private summary: string | null = null;
+  private tools: string[] = [];
+  private lastText = "";
+
+  // What this agent is up to right now, for the Lead's crew report.
+  live() {
+    return { task: this.task, said: this.lastText.slice(-600), tools: this.tools, since: this.startedAt };
+  }
+  private startedAt = Date.now();
   private finalText = "";
   private allText = "";
   private failedResult = false;
@@ -89,13 +101,14 @@ export class Job {
   private spawn(): ChildProcess {
     const { settings, keys } = this.deps;
     const task = this.task;
-    const system = systemPrompt(task, this.game, this.cwd, settings, Object.keys(keys).map(keyEnvName));
+    const system = systemPrompt(task, this.game, this.cwd, settings, Object.keys(keys).map(keyEnvName), this.deps.lane ?? null);
     const brief = task.brief.trim() || task.title;
     const env = Object.fromEntries(Object.entries(keys).map(([id, v]) => [keyEnvName(id), v]));
     const model = modelFor(task.agent, this.provider);
 
+    const crew = this.deps.crew ? `\n\n## The crew right now\n${this.deps.crew}` : "";
     if (this.provider === "codex") {
-      let prompt = `${system}\n\n## Your task\n${brief}`;
+      let prompt = `${system}${crew}\n\n## Your task\n${brief}`;
       if (this.answered) prompt += `\n\nYou asked the owner: ${this.answered.question}\nThey answered: ${this.answered.answer}`;
       return run("codex", codexArgs(prompt, model), { cwd: this.cwd, env });
     }
@@ -104,6 +117,7 @@ export class Job {
     let prompt = brief;
     if (session) prompt = this.answered ? `The owner answered: ${this.answered.answer}` : "Pick up where you left off.";
     else if (this.answered) prompt += `\n\nYou asked the owner: ${this.answered.question}\nThey answered: ${this.answered.answer}`;
+    prompt += crew;
 
     if (settings.studio_mcp && task.needs_studio) {
       this.mcpFile = join(tmpdir(), `roslop-mcp-${task.id}.json`);
@@ -127,8 +141,10 @@ export class Job {
       return;
     } else if (ev.kind === "tool") {
       events.add(id, "tool", ev.name);
+      this.tools = [...this.tools, ev.name].slice(-6);
     } else if (ev.kind === "text") {
       this.allText += ev.text + "\n";
+      this.lastText = ev.text;
       events.note(id, ev.text);
       this.signals(ev.text);
     }
@@ -137,6 +153,10 @@ export class Job {
   private signals(text: string) {
     for (const s of readSignals(text)) {
       if (s.kind === "done") this.summary = s.summary;
+      if (s.kind === "asset" && !this.assets.has(s.id)) {
+        this.assets.add(s.id);
+        this.uploads.push(this.asset(s));
+      }
       if (s.kind === "proof" && !this.proofPaths.has(s.path)) {
         this.proofPaths.add(s.path);
         this.uploads.push(this.proof(s));
@@ -146,6 +166,26 @@ export class Job {
         this.stop("ask");
         return;
       }
+    }
+  }
+
+  private assets = new Set<string>();
+  // An agent put a library item on Roblox. Match it by name, or add it if it's new.
+  private async asset(a: { name: string; id: string }) {
+    const { db, userId, events } = this.deps;
+    try {
+      // Agents sometimes tidy a name or keep the file extension, so match loosely.
+      const norm = (s: string) => s.toLowerCase().replace(/\.[a-z0-9]+$/, "").replace(/[^a-z0-9]+/g, "");
+      const want = norm(a.name);
+      const { data } = await allRows<{ id: string; name: string; file_url: string | null }>(db.from("assets").select("id, name, file_url").is("roblox_id", null).order("created_at").order("id"));
+      const rows = data ?? [];
+      const file = (r: { file_url: string | null }) => norm((r.file_url ?? "").split("/").pop()?.replace(/^\d+-/, "") ?? "");
+      const row = rows.find(r => norm(r.name) === want) ?? rows.find(r => file(r) === want) ?? rows.find(r => want.length > 3 && (norm(r.name).includes(want) || want.includes(norm(r.name))));
+      if (row) await db.from("assets").update({ roblox_id: a.id }).eq("id", row.id);
+      else await db.from("assets").insert({ user_id: userId, name: a.name, kind: assetKind(a.name), roblox_id: a.id, file_url: null, tags: [], game_id: this.task.game_id });
+      events.add(this.task.id, "note", `${a.name} is on Roblox as ${a.id}`);
+    } catch (e) {
+      events.add(this.task.id, "error", (e as Error).message);
     }
   }
 
@@ -182,7 +222,12 @@ export class Job {
     };
 
     try {
-      if (this.stopped === "ask") {
+      if (this.stopped === "ask" && this.ask && (this.answered || isVaultTask(task) || this.deps.settings.savings.no_questions)) {
+        // Already asked once on this task, or it's vault work: take the agent's own first pick and keep going.
+        const pick = this.ask.options[0] ?? "Use your best judgement";
+        events.add(task.id, "note", `Asked "${this.ask.question}" and went with: ${pick}`);
+        await update({ status: "queued", ask: { ...this.ask, answer: `${pick} (picked automatically, keep going without asking again)` }, used });
+      } else if (this.stopped === "ask") {
         await update({ status: "needs_you", ask: this.ask, used });
       } else if (this.stopped === "shutdown") {
         await update({ used, status: "queued" }, true);
@@ -216,7 +261,8 @@ export class Job {
     const text = (this.failedResult && this.finalText) || tail || `Stopped with exit code ${code}`;
     // The desktop Claude app and the command line keep separate sign-ins.
     if (/log ?in|api key|authenticat|credential|unauthori[sz]ed/i.test(text)) {
-      return `${text}\n\nThe command line isn't signed in on this computer. Open Command Prompt, run claude, sign in, then retry the task.`;
+      const fix = this.provider === "codex" ? "Open the Codex app and sign in" : "Open Command Prompt, run claude and sign in";
+      return `${text}\n\nIt isn't signed in on this computer. ${fix}, then retry the task.`;
     }
     return text;
   }

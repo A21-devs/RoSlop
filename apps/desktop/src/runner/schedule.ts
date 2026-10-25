@@ -1,4 +1,4 @@
-import { canStart, concurrency, waitFor, type AgentId, type Priority, type Settings, type Task } from "@roslop/core";
+import { allowance, canStart, waitFor, type AgentId, type Priority, type Settings, type Task } from "@roslop/core";
 
 export interface Board {
   open: Task[];
@@ -6,7 +6,6 @@ export interface Board {
   settings: Settings;
   elapsed: number;
   used: number;
-  recentRate: number;
   studioSlots: number;
   studioBusy: number;
   estimateFor: (agent: AgentId) => number;
@@ -18,6 +17,9 @@ export interface Plan {
   unhold: Task[];
   // Minutes until the first task blocked on pace can start. null means not this window.
   wait?: number | null;
+  limit: number;
+  // Why waiting tasks didn't start, for telling the owner.
+  held: { agent: number; studio: number; room: number; pace: number };
 }
 
 const RANK: Record<Priority, number> = { high: 0, normal: 1, low: 2 };
@@ -27,11 +29,12 @@ export function byPriority(a: Task, b: Task): number {
 }
 
 export function decide(b: Board): Plan {
-  const plan: Plan = { start: [], hold: [], unhold: [] };
+  // The real reading drives this now: only ease off when usage is actually ahead of pace.
+  const limit = b.used >= allowance(b.elapsed, b.settings.cap) * 0.85 ? Math.max(1, Math.ceil(b.settings.max_agents / 2)) : b.settings.max_agents;
+  const plan: Plan = { start: [], hold: [], unhold: [], limit, held: { agent: 0, studio: 0, room: 0, pace: 0 } };
   const { settings } = b;
   const working = b.open.filter(t => t.status === "working");
   const busy = new Set(working.map(t => t.agent));
-  const limit = concurrency(settings.max_agents, b.recentRate, settings.cap);
   let running = working.length;
   let studio = b.studioBusy;
   let reserved = working.reduce((sum, t) => sum + Math.max(0, t.estimate - t.used), 0);
@@ -44,17 +47,26 @@ export function decide(b: Board): Plan {
   for (const task of waiting) {
     const estimate = b.estimateFor(task.agent);
     const holdable = task.priority === "low" && settings.hold_low_priority;
-    const pace = canStart({ elapsed: b.elapsed, used: b.used, reserved, cap: settings.cap }, estimate);
+    const fits = canStart({ elapsed: b.elapsed, used: b.used, reserved, cap: settings.cap }, estimate);
 
-    if (!pace.ok) {
+    // The Lead is how the owner talks to the crew, so it answers even when everyone's busy.
+    const lead = task.agent === "lead";
+    if (!fits.ok && !(lead && b.used + estimate <= settings.cap)) {
+      plan.held.pace++;
       if (plan.wait === undefined) plan.wait = waitFor({ elapsed: b.elapsed, used: b.used, reserved, cap: settings.cap }, estimate);
       if (holdable && task.status === "queued") plan.hold.push(task);
       if (!holdable && task.status === "held") plan.unhold.push(task);
       continue;
     }
 
-    const free = running < limit && !busy.has(task.agent) && (!task.needs_studio || studio < b.studioSlots);
-    if (!free) {
+    // Two of the same agent can work at once, except in Studio where they'd trip over each other.
+    const sameAgent = task.needs_studio && busy.has(task.agent);
+    const noStudio = task.needs_studio && studio >= b.studioSlots;
+    const full = running >= limit && !lead;
+    if (sameAgent || noStudio || full) {
+      if (full) plan.held.room++;
+      else if (noStudio) plan.held.studio++;
+      else plan.held.agent++;
       if (task.status === "held") plan.unhold.push(task);
       continue;
     }

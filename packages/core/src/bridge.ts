@@ -15,6 +15,17 @@ export interface RunnerStatus {
   cli_detail: string | null;
   // Plain words on why nothing is starting, when that's the case.
   note: string | null;
+  // Library files going up to Roblox through Open Cloud.
+  uploads: { left: number; done: number; error: string | null } | null;
+  // Which Studio each running agent holds.
+  lanes: { lane: string; agent: string; task: string; game_id: string | null; since: string }[];
+}
+
+export interface GameInfo {
+  passes: { id: number; name: string; price: number | null }[];
+  badges: { id: number; name: string; awarded: number; rate: number | null }[];
+  servers: { count: number; players: number; avgPing: number | null; avgFps: number | null };
+  products: { id: number; name: string; price: number | null }[];
 }
 
 export interface DesktopBridge {
@@ -31,7 +42,13 @@ export interface DesktopBridge {
   // Point at the CLI by hand when it isn't on PATH. null goes back to looking for it.
   setCliPath(provider: Provider, path: string | null): Promise<void>;
   scanApps(): Promise<AppEntry[]>;
+  // Fetches numbers for hundreds of Roblox games and writes them into the vault.
+  pullGames(vault: string | null): Promise<{ count: number; day: string; charts: string; types: number; vault: string }>;
   openPath(path: string): Promise<void>;
+  // Opens Roblox Studio on a game: its place file if the project has one, otherwise the place on Roblox.
+  openStudio(game: { project_path: string | null; place_id: number | null; universe_id: number | null }): Promise<string>;
+  // Public numbers Roblox doesn't allow a browser to fetch: passes, badges, servers.
+  gameInfo(universeId: number, placeId: number | null): Promise<GameInfo>;
 }
 
 declare global {

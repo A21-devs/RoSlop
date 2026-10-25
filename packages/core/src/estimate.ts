@@ -11,8 +11,9 @@ export function estimate(agent: AgentId, history: Pick<Task, "agent" | "used" | 
     .slice(-20)
     .sort((a, b) => a - b);
   if (past.length < 3) return BASE[AGENT[agent].tier];
-  // lean high so the scheduler doesn't get surprised
-  return past[Math.floor(past.length * 0.75)];
+  // lean high so the scheduler doesn't get surprised, but old runs were counted with a rough
+  // token guess, so don't let one huge number hold every task back
+  return Math.min(past[Math.floor(past.length * 0.75)], BASE[AGENT[agent].tier] * 2);
 }
 
 export function tokensToWindow(tokens: number, windowTokens: number): number {

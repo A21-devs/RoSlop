@@ -5,6 +5,7 @@ const CHUNK = 50;
 
 interface Info {
   id: number;
+  rootPlaceId?: number;
   playing?: number;
   visits?: number;
   favoritedCount?: number;
@@ -24,8 +25,8 @@ async function get<T>(url: string): Promise<T[]> {
 }
 
 export async function recordStats(db: SupabaseClient, userId: string) {
-  const { data } = await db.from("games").select("id, universe_id").not("universe_id", "is", null);
-  const games = (data ?? []) as Pick<Game, "id" | "universe_id">[];
+  const { data } = await db.from("games").select("id, universe_id, place_id").not("universe_id", "is", null);
+  const games = (data ?? []) as Pick<Game, "id" | "universe_id" | "place_id">[];
 
   for (let i = 0; i < games.length; i += CHUNK) {
     const chunk = games.slice(i, i + CHUNK);
@@ -49,5 +50,10 @@ export async function recordStats(db: SupabaseClient, userId: string) {
       }];
     });
     if (rows.length) await db.from("game_stats").insert(rows);
+    // The place id is what opens the game in Studio or on Roblox.
+    for (const g of chunk) {
+      const i = info.find(x => x.id === Number(g.universe_id));
+      if (i?.rootPlaceId && !g.place_id) await db.from("games").update({ place_id: i.rootPlaceId }).eq("id", g.id);
+    }
   }
 }

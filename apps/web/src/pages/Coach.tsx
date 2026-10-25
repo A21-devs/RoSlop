@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { askLead } from "../data/actions";
-import { useData, useSnap } from "../data/store";
-import { suggestions, TEMPLATES } from "../data/templates";
-import { Icon } from "../ui/bits";
+import type { Template } from "@roslop/core";
+import { toast, useData, useSnap } from "../data/store";
+import { suggestions, TEMPLATES, useTemplates } from "../data/templates";
+import { Del, Icon } from "../ui/bits";
+import { Extras, useExtras } from "../ui/Extras";
 
 // Runs in the browser, so coaching a prompt costs none of your usage.
 interface Check {
@@ -19,7 +21,7 @@ interface Check {
 const CHECKS: Check[] = [
   { id: "why", label: "Why you want it", hint: "The Lead can check the numbers behind it before anyone builds.", test: /\b(because|bored|quit|leave|leaving|feel|so that|players|people|retention)\b/i, ask: "What's the problem with how it is now?", write: a => `Why: ${a}.`, picks: ["People get bored", "New players quit early", "It feels unfair", "It looks bad on phones"] },
   { id: "who", label: "Who it's for", hint: "A boss for level 30 squads and one for anyone past 20 are different jobs.", test: /\b(level|new players|beginners|everyone|top \d|squad|veterans|for (kids|new|everyone))\b/i, ask: "Who should this be for?", write: a => `It's for ${a}.`, picks: ["Brand new players", "Players around the midgame", "The top players", "Everyone"] },
-  { id: "done", label: "When it's done", hint: "Without a finish line, agents keep polishing and you pay for it.", test: /\b(done when|until|should be able|tries|at least|under \d|within|test)\b/i, ask: "How will you know it worked?", write: a => `Done when ${a}.`, picks: ["Playtest gets through it without help", "It fits on an iPhone SE", "Kid Tester doesn't get stuck"] },
+  { id: "done", label: "When it's done", hint: "Without a finish line, agents keep polishing and you pay for it.", test: /\b(done when|until|should be able|tries|at least|under \d|within|test)\b/i, ask: "How will you know it worked?", write: a => `Done when ${a}.`, picks: ["Playtest gets through it without help", "It fits on an iPhone SE", "Clueless Tester doesn't get stuck"] },
   { id: "keep", label: "What not to touch", hint: "Otherwise someone will improve something you liked.", test: /\b(don'?t|do not|leave|keep|without changing|not the)\b/i, ask: "Anything they should leave alone?", write: a => `Leave alone: ${a}.`, picks: ["The economy", "Existing UI", "Saves and data"] },
   { id: "ref", label: "A reference", hint: "One clip or game beats three paragraphs about a vibe.", test: /(https?:\/\/|\blike (in )?[A-Z]|\bsimilar to\b|\breference\b)/, ask: "Anything it should feel like?", write: a => `Reference: ${a}.`, picks: [] },
 ];
@@ -42,7 +44,10 @@ export function Coach() {
 
   const missing = CHECKS.filter(c => !c.test.test(text));
   const added = missing.filter(c => answers[c.id]?.trim()).map(c => c.write(answers[c.id].trim()));
-  const better = [text.trim(), ...added].filter(Boolean).join("\n\n");
+  const written = [text.trim(), ...added].filter(Boolean).join("\n\n");
+  const extras = useExtras();
+  const better = written ? extras.attach(written) : "";
+  const mine = useTemplates();
   const guesses = missing.length - added.length;
   const words = text.trim().split(/\s+/).filter(Boolean).length;
 
@@ -53,7 +58,18 @@ export function Coach() {
   };
   const send = async (t: string) => {
     await askLead(s, t, forGame || null);
+    extras.reset();
     nav("/lead");
+  };
+  const saveTemplate = async () => {
+    const title = prompt("Name this template", written.split("\n")[0].slice(0, 60))?.trim();
+    if (!title) return;
+    await mine.save({ id: crypto.randomUUID(), title, body: written, refs: extras.refs.map(r => r.path) });
+    toast(`Saved "${title}" to your templates`);
+  };
+  const useMine = (t: Template) => {
+    use(t.body);
+    extras.setRefs(t.refs.map(path => ({ path, name: s.assets.find(a => a.file_url === path)?.name ?? path.split("/").pop()!.replace(/^\d+-/, "") })));
   };
 
   return (
@@ -103,11 +119,13 @@ export function Coach() {
           )}
           <div className="card pad" style={{ borderColor: "var(--line-2)" }}>
             <div className="sec-h"><h3>What the Lead will get</h3></div>
+            <div style={{ marginBottom: 12 }}><Extras x={extras} about={text} /></div>
             <div style={{ whiteSpace: "pre-wrap", minHeight: 60, lineHeight: 1.6 }} className={better ? "" : "muted"}>{better || "Start typing above, or pick something on the right."}</div>
             <div className="row wrap" style={{ marginTop: 14 }}>
               <button className="btn pri" disabled={!better} onClick={() => send(better)}><Icon name="up" size={14} />Send to Lead</button>
               <button className="btn" disabled={!better} onClick={() => navigator.clipboard.writeText(better)}>Copy</button>
-              {added.length > 0 && <button className="btn ghost" onClick={() => send(text)}>Send mine as is</button>}
+              {added.length > 0 && <button className="btn ghost" onClick={() => send(extras.attach(text))}>Send mine as is</button>}
+              <button className="btn ghost" disabled={!written} onClick={saveTemplate}><Icon name="plus" size={14} />Save as template</button>
             </div>
           </div>
         </div>
@@ -126,6 +144,22 @@ export function Coach() {
               </div>
             </div>
           )}
+          <div className="card pad">
+            <div className="sec-h"><h3>Your templates</h3><span className="c">{mine.list.length}</span></div>
+            {!mine.list.length && <div className="muted small">Write something on the left and hit Save as template. Reference files you attached come with it.</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8 }}>
+              {mine.list.map(t => (
+                <div key={t.id} className="has-del">
+                  <Del onDelete={() => mine.remove(t.id)} />
+                  <button className="card flat" style={{ padding: "10px 12px", textAlign: "left", background: "var(--raise)", width: "100%", minWidth: 0 }} onClick={() => useMine(t)}>
+                    <div style={{ fontWeight: 500, paddingRight: 24 }}>{t.title}</div>
+                    <div className="muted small" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.body}</div>
+                    {t.refs.length > 0 && <div className="dim small" style={{ marginTop: 4 }}>{t.refs.length} reference file{t.refs.length > 1 ? "s" : ""}</div>}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="card pad">
             <div className="sec-h"><h3>Templates</h3><span className="c">{TEMPLATES.length}</span></div>
             <div className="row wrap" style={{ gap: 6, marginBottom: 10 }}>

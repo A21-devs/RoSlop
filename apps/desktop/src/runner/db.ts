@@ -71,9 +71,21 @@ export function withDefaults(userId: string, row: Partial<Settings> | null): Set
     apps: row.apps ?? [],
     connectors: row.connectors ?? {},
     blender: { ...base.blender, ...row.blender },
+    studio: { ...base.studio, ...row.studio, lanes: row.studio?.lanes?.length ? row.studio.lanes : base.studio.lanes },
   };
 }
 
 export function fail(what: string, error: { message: string } | null) {
   if (error) throw new Error(`${what}: ${error.message}`);
+}
+
+// Supabase caps a request at 1,000 rows. Pages through so a big queue isn't cut off.
+export async function allRows<T>(q: { range(from: number, to: number): PromiseLike<{ data: T[] | null; error: { message: string } | null }> }) {
+  const data: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const page = await q.range(from, from + 999);
+    if (page.error) return { data: null, error: page.error };
+    data.push(...(page.data ?? []));
+    if (!page.data || page.data.length < 1000) return { data, error: null };
+  }
 }

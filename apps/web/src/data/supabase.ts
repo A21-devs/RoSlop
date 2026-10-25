@@ -2,6 +2,23 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { defaultSettings, type Settings, type TableName } from "@roslop/core";
 import { emptySnapshot, TABLES, type Change, type Db, type User } from "./db";
 
+const PAGE = 1000;
+
+function localExtras(): Partial<Settings> {
+  try {
+    return JSON.parse(localStorage.getItem("roslop-settings-extra") ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveExtras(patch: Record<string, unknown>) {
+  localStorage.setItem("roslop-settings-extra", JSON.stringify({ ...localExtras(), ...patch }));
+}
+
+// Settings saved only here because the database needs the setup run again.
+export const settingsOnlyHere = () => Object.keys(localExtras());
+
 // Turns Supabase's errors into something a person can act on.
 export function explain(e: { message?: string; code?: string } | null | undefined): string {
   const msg = e?.message ?? String(e);
@@ -82,14 +99,35 @@ export function cloudDb(url: string, anonKey: string): Db {
         check(e2);
       }
       const base = defaultSettings(uid);
-      const snap = emptySnapshot({ ...base, ...settings, savings: { ...base.savings, ...settings.savings }, blender: { ...base.blender, ...settings.blender } });
+      const extra = localExtras();
+      const merged = { ...base, ...settings, ...extra } as Settings;
+      const snap = emptySnapshot({
+        ...merged,
+        savings: { ...base.savings, ...merged.savings },
+        blender: { ...base.blender, ...merged.blender },
+        studio: { ...base.studio, ...merged.studio, lanes: merged.studio?.lanes?.length ? merged.studio.lanes : base.studio.lanes },
+      });
       // Events and stats grow forever, so only pull recent ones up front.
+      // Supabase hands back at most 1,000 rows a request, so page through until there's no more.
+      const since = new Date(Date.now() - 14 * 864e5).toISOString();
       await Promise.all(TABLES.map(async t => {
-        let q = sb.from(t).select("*").order("created_at", { ascending: true });
-        if (t === "task_events" || t === "game_stats") q = q.gte("created_at", new Date(Date.now() - 14 * 864e5).toISOString());
-        const { data, error: e3 } = await q.limit(5000);
-        check(e3);
-        (snap as Record<string, unknown>)[t] = data ?? [];
+        // Each Roblox pull holds every game, so only the latest few are needed.
+        if (t === "market_snapshots") {
+          const { data, error: e3 } = await sb.from(t).select("*").order("created_at", { ascending: false }).limit(4);
+          check(e3);
+          (snap as Record<string, unknown>)[t] = (data ?? []).reverse();
+          return;
+        }
+        const rows: unknown[] = [];
+        for (let from = 0; ; from += PAGE) {
+          let q = sb.from(t).select("*").order("created_at", { ascending: true }).order("id");
+          if (t === "task_events" || t === "game_stats") q = q.gte("created_at", since);
+          const { data, error: e3 } = await q.range(from, from + PAGE - 1);
+          check(e3);
+          rows.push(...(data ?? []));
+          if (!data || data.length < PAGE) break;
+        }
+        (snap as Record<string, unknown>)[t] = rows;
       }));
       return snap;
     },
@@ -140,9 +178,51 @@ export function cloudDb(url: string, anonKey: string): Db {
       check(error);
       emit({ table, row: { id }, gone: true });
     },
+    async updateMany(table, ids, patch) {
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        const { data, error } = await sb.from(table).update(patch as never).in("id", chunk).select();
+        check(error);
+        for (const row of data ?? []) emit({ table, row } as Change);
+      }
+    },
+    async removeMany(table, ids) {
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        check((await sb.from(table).delete().in("id", chunk)).error);
+        for (const id of chunk) emit({ table, row: { id }, gone: true });
+      }
+    },
+    async clearAssets(which) {
+      const rows: { id: string; file_url: string | null }[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const base = sb.from("assets").select("id, file_url").order("id");
+        const { data, error } = await (which === "references" ? base.eq("kind", "reference") : base.neq("kind", "reference")).range(from, from + PAGE - 1);
+        check(error);
+        rows.push(...(data ?? []));
+        if (!data || data.length < PAGE) break;
+      }
+      const del = sb.from("assets").delete();
+      check((await (which === "references" ? del.eq("kind", "reference") : del.neq("kind", "reference"))).error);
+      // Stored files go too, so they stop taking up space. Roblox copies stay on Roblox.
+      const files = rows.map(r => r.file_url).filter((p): p is string => !!p && !/^(https?|data|blob):/.test(p));
+      for (let i = 0; i < files.length; i += PAGE) await sb.storage.from("files").remove(files.slice(i, i + PAGE));
+      for (const r of rows) emit({ table: "assets", row: { id: r.id }, gone: true });
+      return rows.length;
+    },
     async saveSettings(patch) {
       emit({ table: "settings", row: patch as Settings });
       const { error } = await sb.from("settings").update(patch).eq("user_id", current!.id);
+      // A column from a newer version that this project hasn't got yet: keep it on this device
+      // until the setup is run again, instead of losing the change.
+      const missing = error?.message.match(/'(\w+)' column/)?.[1];
+      if (missing && missing in patch) {
+        saveExtras({ [missing]: (patch as Record<string, unknown>)[missing] });
+        const rest = { ...patch } as Record<string, unknown>;
+        delete rest[missing];
+        if (Object.keys(rest).length) check((await sb.from("settings").update(rest).eq("user_id", current!.id)).error);
+        return;
+      }
       check(error);
     },
 

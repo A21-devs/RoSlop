@@ -44,16 +44,30 @@ interface Command {
 // A file someone pointed us at by hand, for when it isn't on PATH.
 export const cliPaths = jsonStore<string>("cli.json");
 
-// The Claude desktop app keeps its own copy of Claude Code in versioned folders, off PATH.
-// Only look in folders named claude-code so we never launch the desktop app itself.
+// The Claude and Codex desktop apps keep their own copy of the CLI, off PATH. Claude's lives in
+// versioned claude-code folders, Codex's inside the app's resources. Matches are limited to those
+// spots so we never launch the desktop app itself.
+function appRoots(name: Provider): string[] {
+  const local = process.env.LOCALAPPDATA ?? "";
+  if (name === "claude") {
+    return win
+      ? [join(process.env.APPDATA ?? "", "Claude", "claude-code"), join(local, "Claude", "claude-code"), join(local, "Programs", "claude-code")]
+      : [join(homedir(), "Library/Application Support/Claude/claude-code"), join(homedir(), ".config/Claude/claude-code")];
+  }
+  if (!win) return ["/Applications/Codex.app/Contents/Resources", join(homedir(), "Applications/Codex.app/Contents/Resources")];
+  const programs = join(local, "Programs");
+  let named: string[] = [];
+  try {
+    named = readdirSync(programs).filter(n => /codex|openai/i.test(n)).map(n => join(programs, n));
+  } catch {}
+  return [...named, join(local, "OpenAI"), join(local, "Codex"), join(process.env.ProgramFiles ?? "C:\\Program Files", "Codex"), join(process.env.ProgramFiles ?? "C:\\Program Files", "OpenAI")];
+}
+
 function bundled(name: Provider): string | null {
-  if (name !== "claude") return null;
-  const file = win ? "claude.exe" : "claude";
-  const roots = win
-    ? [join(process.env.APPDATA ?? "", "Claude", "claude-code"), join(process.env.LOCALAPPDATA ?? "", "Claude", "claude-code"), join(process.env.LOCALAPPDATA ?? "", "Programs", "claude-code")]
-    : [join(homedir(), "Library/Application Support/Claude/claude-code"), join(homedir(), ".config/Claude/claude-code")];
+  const file = win ? `${name}.exe` : name;
   const found: { path: string; at: number }[] = [];
-  const walk = (dir: string, depth: number) => {
+  let budget = 30_000;
+  const walk = (dir: string, depth: number, inResources: boolean) => {
     let names: string[];
     try {
       names = readdirSync(dir);
@@ -61,17 +75,18 @@ function bundled(name: Provider): string | null {
       return;
     }
     for (const n of names) {
+      if (--budget < 0) return;
       const p = join(dir, n);
       try {
         const st = statSync(p);
-        if (st.isDirectory() && depth > 0) walk(p, depth - 1);
-        else if (st.isFile() && n.toLowerCase() === file) found.push({ path: p, at: st.mtimeMs });
+        if (st.isDirectory() && depth > 0) walk(p, depth - 1, inResources || n.toLowerCase() === "resources");
+        else if (st.isFile() && n.toLowerCase() === file && (name === "claude" || inResources)) found.push({ path: p, at: st.mtimeMs });
       } catch {}
     }
   };
-  roots.forEach(r => walk(r, 3));
+  for (const r of appRoots(name)) walk(r, name === "claude" ? 3 : 9, !win);
   const local = join(homedir(), ".claude", "local", win ? "claude.cmd" : "claude");
-  if (existsSync(local)) found.push({ path: local, at: 0 });
+  if (name === "claude" && existsSync(local)) found.push({ path: local, at: 0 });
   return found.sort((a, b) => b.at - a.at)[0]?.path ?? null;
 }
 
@@ -121,7 +136,7 @@ export function cliFound(name: Provider): Promise<CliCheck> {
       const cmd = resolveCommand(name);
       if (!cmd) {
         const shim = locate(name);
-        return done({ ok: false, detail: shim ? `Found ${shim} but couldn't work out how to start it.` : `Couldn't find "${name}" on PATH or inside the Claude app.` });
+        return done({ ok: false, detail: shim ? `Found ${shim} but couldn't work out how to start it.` : `Couldn't find "${name}" on PATH or inside the ${name === "claude" ? "Claude" : "Codex"} app.` });
       }
       where = [cmd.file, ...cmd.prefix].join(" ");
       const child = run(name, ["--version"], { cwd: homedir() });

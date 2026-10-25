@@ -154,3 +154,22 @@ export function Seg<T extends string>({ value, options, onChange }: { value: T; 
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
+
+// The little x that shows on hover. Sits on top of links and buttons without triggering them.
+export function Del({ onDelete, title = "Delete", style }: { onDelete: () => unknown; title?: string; style?: React.CSSProperties }) {
+  return (
+    <span
+      role="button"
+      className="del-x"
+      title={title}
+      style={style}
+      onClick={e => {
+        e.preventDefault();
+        e.stopPropagation();
+        void Promise.resolve(onDelete());
+      }}
+    >
+      <Icon name="x" size={12} />
+    </span>
+  );
+}

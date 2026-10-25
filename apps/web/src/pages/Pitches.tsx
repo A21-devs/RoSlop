@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { ago } from "@roslop/core";
-import { decidePitch, pitchIdea } from "../data/actions";
+import { decidePitch, pitchIdea, remove } from "../data/actions";
 import { useSnap } from "../data/store";
-import { Av, Empty, Icon, Seg } from "../ui/bits";
+import { Av, Del, Empty, Icon, Seg } from "../ui/bits";
 
 type Show = "waiting" | "approved" | "other";
 
@@ -37,10 +37,10 @@ export function Pitches() {
         <div className="grid2" style={{ gridTemplateColumns: "260px 1fr" }}>
           <div className="col">
             {list.map(x => (
-              <button key={x.id} className="card pad row" style={{ textAlign: "left", alignItems: "flex-start", gap: 10, borderColor: x.id === p.id ? "var(--line-2)" : "" }} onClick={() => setPick(x.id)}>
+              <div key={x.id} className="has-del"><Del onDelete={() => remove("pitches", x)} /><button className="card pad row" style={{ width: "100%", textAlign: "left", alignItems: "flex-start", gap: 10, borderColor: x.id === p.id ? "var(--line-2)" : "" }} onClick={() => setPick(x.id)}>
                 <span className="pill acc">{x.score}/10</span>
                 <div><div style={{ fontWeight: 500, lineHeight: 1.3 }}>{x.title}</div><div className="muted small">{x.source === "you" ? "your idea" : "Pulse"} · {ago(x.created_at)}</div></div>
-              </button>
+              </button></div>
             ))}
           </div>
           <div className="card" style={{ overflow: "hidden" }}>

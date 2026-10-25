@@ -19,7 +19,7 @@ export const AGENTS: Agent[] = [
   { id: "scenic", name: "Scenic", short: "SC", color: "#6fd08c", tier: "standard", job: "Builds the world, terrain and lighting.", studio: true },
   { id: "librarian", name: "Librarian", short: "LB", color: "#b49cff", tier: "light", job: "Finds and sets up models, effects and sounds.", studio: false },
   { id: "balance", name: "Balance", short: "BA", color: "#4fd1c5", tier: "standard", job: "Simulates the economy so upgrades feel right.", studio: false },
-  { id: "kid", name: "Kid Tester", short: "KT", color: "#ffd84d", tier: "light", job: "Plays like a 10 year old who skips every tutorial.", studio: true },
+  { id: "kid", name: "Clueless Tester", short: "CT", color: "#ffd84d", tier: "light", job: "Plays with no clue what the game is and skips every tutorial.", studio: true },
   { id: "playtest", name: "Playtest", short: "PT", color: "#ff9b4a", tier: "light", job: "Runs the game in Studio and reports what breaks.", studio: true },
   { id: "splash", name: "Splash", short: "SP", color: "#e57bff", tier: "light", job: "Thumbnails and icons.", studio: false },
   { id: "merchant", name: "Merchant", short: "ME", color: "#e8c46a", tier: "standard", job: "Shops, passes and developer products.", studio: false },

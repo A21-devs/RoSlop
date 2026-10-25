@@ -3,9 +3,12 @@ import { NavLink, useParams } from "react-router-dom";
 import { AGENTS, ago, CONNECTORS, KEYS, MODELS, pct, projected, SAVINGS, serverFor, WINDOW_MIN, type AppEntry, type MachineRole, type RunnerStatus, type Settings as S, type Tier } from "@roslop/core";
 import { resetDemo } from "../data/demo";
 import { db, toast, useData, useSnap, useUsage } from "../data/store";
-import { Av, Icon, Toggle } from "../ui/bits";
+import { Av, Icon, Seg, Toggle } from "../ui/bits";
+import { ModelFields } from "../ui/ModelRules";
+import { saveStudio } from "../ui/Board";
+import { settingsOnlyHere } from "../data/supabase";
 
-const SECTIONS = [["usage", "Usage"], ["computers", "Computers and apps"], ["connectors", "Connectors"], ["keys", "Keys"], ["provider", "AI provider"], ["account", "Account"], ["look", "Look"]] as const;
+const SECTIONS = [["usage", "Usage"], ["studios", "Studios"], ["computers", "Computers and apps"], ["connectors", "Connectors"], ["keys", "Keys"], ["provider", "AI provider"], ["account", "Account"], ["look", "Look"]] as const;
 
 const save = (patch: Partial<S>) => db.saveSettings(patch);
 
@@ -142,6 +145,12 @@ function ThisComputer() {
           {line(st.provider === "claude" ? "Claude Code" : "Codex", st.cli_detail ?? (st.cli_found ? "Found" : "Not checked yet"), st.cli_found)}
           {line("Working on", st.working.length ? st.working.join(", ") : "Nothing right now")}
           {st.note && line("Why it's waiting", st.note)}
+          {!st.cli_found && st.provider === "codex" && (
+            <div className="small muted" style={{ padding: "10px 0", lineHeight: 1.6 }}>
+              RoSlop looks for the Codex that comes inside the Codex app, so you don't need the terminal version. Install the Codex app, open it once and sign in, then hit Check again.
+              If it still isn't found, hit Point at the file and pick <code>codex.exe</code> from inside the Codex app's folder (usually under <code>AppData\Local\Programs</code>, in a <code>resources</code> folder).
+            </div>
+          )}
           {!st.cli_found && st.provider === "claude" && (
             <div className="small muted" style={{ padding: "10px 0", lineHeight: 1.6 }}>
               The Claude desktop app isn't the same as Claude Code's command line, and RoSlop needs the command line.
@@ -228,28 +237,7 @@ function BlenderRules() {
   return (
     <div className="card pad col" style={{ marginTop: 14, gap: 12 }}>
       <div><b>How Blender models should come out</b><div className="muted small">Every model the crew makes follows these, so they look like one game and stay light on phones.</div></div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-        <label className="field"><span>Style</span>
-          <select className="input" value={r.style} onChange={e => set({ style: e.target.value as typeof r.style })}>
-            {["low poly", "stylized", "toon", "realistic", "voxel"].map(v => <option key={v} value={v}>{v}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Max triangles per model</span>
-          <select className="input" value={r.max_tris} onChange={e => set({ max_tris: Number(e.target.value) })}>
-            {[500, 1500, 4000, 8000, 15000].map(v => <option key={v} value={v}>{v.toLocaleString()}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Texture size</span>
-          <select className="input" value={r.texture} onChange={e => set({ texture: Number(e.target.value) as typeof r.texture })}>
-            {[256, 512, 1024].map(v => <option key={v} value={v}>{v} x {v}</option>)}
-          </select>
-        </label>
-        <label className="field"><span>Collision in Studio</span>
-          <select className="input" value={r.collision} onChange={e => set({ collision: e.target.value as typeof r.collision })}>
-            <option value="box">Box, cheapest</option><option value="hull">Hull</option><option value="precise">Precise, only if needed</option>
-          </select>
-        </label>
-      </div>
+      <ModelFields r={r} set={set} />
       <div className="list">
         <Row title="One material per model" sub="Fewer draw calls. Extra colors go in a texture atlas."><Toggle on={r.single_material} onChange={v => set({ single_material: v })} /></Row>
         <Row title="Bake detail into textures" sub="Instead of adding geometry"><Toggle on={r.bake} onChange={v => set({ bake: v })} /></Row>
@@ -338,6 +326,12 @@ function Keys() {
           <li>Add your experiences and give it Place publishing, DataStore read and write, and Assets read and write.</li>
           <li>Copy it straight away, Roblox only shows it once.</li>
         </ol>
+        <b style={{ display: "block", marginTop: 10 }}>Your Roblox creator id</b>
+        <ol className="muted" style={{ paddingLeft: 18, marginTop: 6 }}>
+          <li>Uploads to you: open your Roblox profile, the number in the link is your id (roblox.com/users/<b>123456</b>/profile). Paste just the number.</li>
+          <li>Uploads to a group: open the group page and paste <span className="mono">group:</span> plus the number from its link, like <span className="mono">group:7654321</span>. The key has to be made for that group.</li>
+          <li>With both saved, RoSlop puts every Library upload on Roblox itself and fills in the ids. It uses none of your Claude usage.</li>
+        </ol>
       </div>
     </>
   );
@@ -371,8 +365,63 @@ function Provider() {
   );
 }
 
+const GAME_TYPES = ["Tycoon", "Simulator", "Incremental simulator", "RNG", "Tower defense", "Obby", "Battlegrounds", "RPG", "Horror", "Roleplay", "Shooter", "Racing", "Survival", "Story", "Fishing", "Pet sim", "Anime"];
+
+// Name each Studio the way you think of it and say what it's for. Agents get told which one is theirs.
+function Studios() {
+  const s = useSnap();
+  const st = s.settings.studio;
+  const save = (lanes: typeof st.lanes) => saveStudio(s.settings, { lanes });
+  const set = (i: number, patch: Partial<(typeof st.lanes)[number]>) => save(st.lanes.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const games = s.games;
+  return (
+    <>
+      <h1 className="page">Studios</h1>
+      <p className="lede">Give each Studio a name and say which game and what kind of game it's for. It's saved under that name, so the same Studio keeps its job, and agents are told which one is theirs.</p>
+      <div className="card pad col" style={{ marginTop: 18, gap: 10 }}>
+        <div className="row wrap" style={{ gap: 10 }}>
+          <span className="muted">Studios agents can have open at once</span>
+          <Seg value={st.limit === null ? "all" : String(st.limit)} onChange={v => saveStudio(s.settings, { limit: v === "all" ? null : Number(v) })} options={[["0", "Off"], ["1", "1"], ["2", "2"], ["3", "3"], ["all", "All"]]} />
+        </div>
+      </div>
+      <datalist id="game-types">{GAME_TYPES.map(t => <option key={t} value={t} />)}</datalist>
+      <div className="card list" style={{ marginTop: 14, padding: "0 16px" }}>
+        {st.lanes.map((l, i) => (
+          <div key={i} className="row wrap" style={{ padding: "12px 0", gap: 10 }}>
+            <input className="input mono" style={{ width: 200 }} defaultValue={l.name} onBlur={e => e.target.value.trim() && e.target.value !== l.name && set(i, { name: e.target.value.trim() })} />
+            <select className="input" style={{ width: 200 }} value={l.game_id ?? ""} onChange={e => set(i, { game_id: e.target.value || null })}>
+              <option value="">Any game</option>
+              {games.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+            <input className="input grow" list="game-types" placeholder="What kind of game (RNG, tycoon…)" defaultValue={l.type} onBlur={e => e.target.value !== l.type && set(i, { type: e.target.value.trim() })} />
+            <button className="btn sm ghost" disabled={st.lanes.length < 2} onClick={() => save(st.lanes.filter((_, j) => j !== i))}><Icon name="x" size={13} /></button>
+          </div>
+        ))}
+      </div>
+      <button className="btn" style={{ marginTop: 12 }} onClick={() => save([...st.lanes, { name: `Studio ${st.lanes.length + 1}`, game_id: null, type: "" }])}><Icon name="plus" size={14} />Add a Studio</button>
+      {settingsOnlyHere().includes("studio") && <div className="warn small" style={{ marginTop: 12 }}>Saved on this device only for now. Run the Supabase setup again so it syncs and the desktop app can use it.</div>}
+    </>
+  );
+}
+
 function Account() {
   const { user } = useData();
+  const s = useSnap();
+  const [clearing, setClearing] = useState(false);
+  const counts = { assets: s.assets.filter(a => a.kind !== "reference").length, references: s.assets.filter(a => a.kind === "reference").length };
+  const clear = async (which: "assets" | "references") => {
+    const label = which === "assets" ? "Library assets" : "references";
+    if (!confirm(`Delete all ${counts[which].toLocaleString()} ${label} and their files? This can't be undone. Anything already on Roblox stays on Roblox.`)) return;
+    setClearing(true);
+    try {
+      const n = await db.clearAssets(which);
+      toast(`Deleted ${n.toLocaleString()} ${label}`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), true);
+    } finally {
+      setClearing(false);
+    }
+  };
   return (
     <>
       <h1 className="page">Account</h1>
@@ -380,6 +429,14 @@ function Account() {
       <div className="row" style={{ marginTop: 18 }}>
         <button className="btn" onClick={() => db.signOut()}>Sign out</button>
         {db.mode === "demo" && <button className="btn ghost" onClick={resetDemo}>Reset the demo</button>}
+      </div>
+      <div className="card pad col" style={{ marginTop: 24, gap: 10, borderColor: "color-mix(in srgb, var(--bad) 40%, var(--line))" }}>
+        <b>Clear the Library</b>
+        <div className="muted small">Deletes the entries and the uploaded files from your Supabase project, on every device. Copies already on Roblox aren't touched.</div>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <button className="btn danger" disabled={clearing || !counts.assets} onClick={() => clear("assets")}>{clearing ? "Deleting…" : `Delete all assets (${counts.assets.toLocaleString()})`}</button>
+          <button className="btn danger" disabled={clearing || !counts.references} onClick={() => clear("references")}>Delete all references ({counts.references.toLocaleString()})</button>
+        </div>
       </div>
     </>
   );
@@ -404,7 +461,7 @@ function Look() {
 
 export function Settings() {
   const { section = "usage" } = useParams();
-  const Page = { usage: Usage, computers: Computers, connectors: Connectors, keys: Keys, provider: Provider, account: Account, look: Look }[section] ?? Usage;
+  const Page = { usage: Usage, studios: Studios, computers: Computers, connectors: Connectors, keys: Keys, provider: Provider, account: Account, look: Look }[section] ?? Usage;
   return (
     <div className="content flush split" style={{ display: "grid", gridTemplateColumns: "220px 1fr", height: "100%" }}>
       <nav className="nav hide-m" style={{ padding: "22px 12px", borderRight: "1px solid var(--line)" }}>

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AGENT, ago, pct, type Task, type TaskStatus } from "@roslop/core";
-import { answer, bump, drop, pause, resume } from "../data/actions";
+import { answer, bump, drop, pause, reject, remove, resume } from "../data/actions";
 import { useGameFilter, useSnap } from "../data/store";
-import { Av, Icon, Seg, agentName } from "../ui/bits";
+import { Av, Del, Icon, Seg, agentName } from "../ui/bits";
 
 type Filter = "all" | "working" | "queued" | "you" | "done";
 
@@ -37,7 +37,7 @@ function Detail({ t }: { t: Task }) {
         {t.ask && t.status === "needs_you" && (
           <div className="card flat pad" style={{ marginBottom: 12, background: "var(--raise)" }}>
             <div style={{ marginBottom: 10, whiteSpace: "pre-wrap" }}>{t.ask.question}</div>
-            <div className="row wrap">{(t.ask.options ?? []).map((o, i) => <button key={o} className={`btn sm ${i ? "" : "pri"}`} onClick={() => answer(t, o)}>{o}</button>)}</div>
+            <div className="row wrap">{(t.ask.options ?? []).map((o, i) => <button key={o} className={`btn sm ${i ? "" : "pri"}`} onClick={() => answer(t, o)}>{o}</button>)}<button className="btn sm danger" onClick={() => reject(t)}>Reject</button></div>
           </div>
         )}
         {events.map(e => (
@@ -101,7 +101,8 @@ export function Tasks() {
             </div>
             <div className="list">
               {rows.map(t => (
-                <div key={t.id} style={{ background: open === t.id ? "var(--raise)" : "" }}>
+                <div key={t.id} className="has-del" style={{ background: open === t.id ? "var(--raise)" : "" }}>
+                  <Del title="Delete task" style={{ top: 9, right: 10 }} onDelete={() => remove("tasks", t)} />
                   <button className="row" style={{ padding: "11px 16px", gap: 12, width: "100%", textAlign: "left" }} onClick={() => setParams(open === t.id ? {} : { open: t.id })}>
                     <Av who={t.agent} />
                     <div className="grow">

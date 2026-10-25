@@ -1,9 +1,9 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { app } from "electron";
-import { estimate, serverFor, windowElapsed, WINDOW_MIN, type Game, type Machine, type RunnerStatus, type Settings, type Task } from "@roslop/core";
+import { estimate, serverFor, windowElapsed, WINDOW_MIN, type Game, type MarketItem, type Machine, type RunnerStatus, type Settings, type StudioLane, type Task } from "@roslop/core";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { allKeys } from "../keys";
+import { allKeys, getKey } from "../keys";
 import { cliFound } from "./cli";
 import { listServers } from "./mcp";
 import { connect, fail, loadSettings, Tokens, withDefaults, type Auth } from "./db";
@@ -13,7 +13,12 @@ import { heartbeat, registerMachine, shouldWork, STUDIO_SLOTS } from "./machine"
 import { decide } from "./schedule";
 import { recordStats } from "./stats";
 import { Usage } from "./usage";
-import { isVaultTask, seedVault } from "./vault";
+import { briefVault, isVaultTask, seedVault } from "./vault";
+import { fetchRefs } from "./refs";
+import { crewReport } from "./crew";
+import { allRows } from "./db";
+import { RobloxUploads } from "./roblox";
+import { latestPull, looksQuick, pullGames, tidyLinks, writeGames, type PullResult } from "./gamedata";
 
 const POLL_MS = 20_000;
 const HEARTBEAT_MS = 60_000;
@@ -28,6 +33,7 @@ interface Live {
   settings: Settings;
   events: Events;
   usage: Usage;
+  uploads: RobloxUploads;
   channel: RealtimeChannel;
   timers: NodeJS.Timeout[];
 }
@@ -65,6 +71,8 @@ export class Runner {
       working: jobs.map(j => j.task.title),
       last_error: this.lastError,
       cli_detail: this.cliDetail,
+      uploads: this.live ? this.live.uploads.state : null,
+      lanes: jobs.filter(j => this.held.has(j.task.id)).map(j => ({ ...this.held.get(j.task.id)!, agent: j.task.agent, task: j.task.title, game_id: j.task.game_id })),
       note: this.live ? this.note : this.lastError ? "The crew couldn't start." : "The crew isn't running yet.",
     };
   }
@@ -106,6 +114,7 @@ export class Runner {
         tokens, db, userId, machine, settings,
         events: new Events(db, userId),
         usage: new Usage(db, userId),
+        uploads: new RobloxUploads(db, () => this.changed()),
         channel: this.subscribe(db, userId),
         timers: [],
       };
@@ -115,7 +124,9 @@ export class Runner {
         setInterval(() => this.tick(), POLL_MS),
         setInterval(() => void heartbeat(db, machine.id, live.settings.provider).catch(e => this.error(e)), HEARTBEAT_MS),
         setInterval(() => void recordStats(db, userId).catch(() => {}), STATS_MS),
+        setInterval(() => this.uploadAssets(), 30_000),
       );
+      this.uploadAssets();
       void recordStats(db, userId).catch(() => {});
       this.lastError = null;
       this.tick();
@@ -217,6 +228,53 @@ export class Runner {
       });
   }
 
+  // Real numbers for hundreds of games, written into the vault. Two callers at once share one pull.
+  private pulling: Promise<PullResult> | null = null;
+  pullGames(vault: string): Promise<PullResult> {
+    this.pulling ??= (async () => {
+      const before = this.note;
+      try {
+        const rows = await pullGames({ onProgress: p => this.say(`Pulling game data from Roblox. ${p}.`) });
+        if (!rows.length) throw new Error("Roblox didn't send any games back. Check the internet and try again.");
+        seedVault(vault);
+        const result = writeGames(vault, rows);
+        const live = this.live;
+        if (live) {
+          const items: MarketItem[] = rows.map(g => ({
+            universe_id: g.universe_id, place_id: g.place_id, name: g.name, genre: g.genre, subgenre: g.subgenre, playing: g.playing,
+            likes: g.like_ratio, like_ratio: g.like_ratio, visits: g.visits, favorites: g.favorites, age_days: g.age_days, updated: g.updated,
+            max_players: g.max_players, lists: g.lists, icon: g.icon, quick: looksQuick(g),
+          }));
+          await live.db.from("market_snapshots").insert({ user_id: live.userId, source: "roblox", sort: "charts and searches", items });
+          await live.db.from("market_snapshots").delete().eq("source", "roblox").lt("created_at", new Date(Date.now() - 14 * 864e5).toISOString());
+        }
+        return result;
+      } finally {
+        this.pulling = null;
+        this.say(before);
+      }
+    })();
+    return this.pulling;
+  }
+
+  // Which Studio each running agent has, by the name you gave it.
+  private held = new Map<string, { lane: string; since: string }>();
+  private pickLane(settings: Settings, task: Task): StudioLane | null {
+    const taken = new Set([...this.held.values()].map(h => h.lane));
+    const free = settings.studio.lanes.filter(l => !taken.has(l.name));
+    return free.find(l => l.game_id && l.game_id === task.game_id) ?? free.find(l => !l.game_id) ?? free[0] ?? null;
+  }
+
+  // Only the computer doing the work uploads, so two machines don't both put a file on Roblox.
+  private uploadAssets() {
+    const live = this.live;
+    if (!live || live.machine.role !== "worker") return;
+    void live.uploads.tick(getKey("roblox_open_cloud"), getKey("roblox_creator")).catch(e => {
+      live.uploads.state.error = (e as Error).message;
+      this.changed();
+    });
+  }
+
   private say(note: string | null) {
     if (note === this.note) return;
     this.note = note;
@@ -236,11 +294,11 @@ export class Runner {
     }
     if (!this.cli) {
       const install = live.settings.provider === "codex"
-        ? "npm install -g @openai/codex, then run codex login"
+        ? "install the Codex app and sign in (RoSlop uses the copy inside it), or point at codex.exe in Settings, Computers and apps"
         : process.platform === "win32"
           ? "open PowerShell and run irm https://claude.ai/install.ps1 | iex, then run claude once to sign in"
           : "curl -fsSL https://claude.ai/install.sh | bash, then run claude once to sign in";
-      return this.say(`${name} isn't working on this computer (${this.cliDetail ?? "not checked"}). If it's not installed, in a terminal: ${install}. Then hit Check again.`);
+      return this.say(`${name} isn't working on this computer (${this.cliDetail ?? "not checked"}). If it's not installed: ${install}. Then hit Check again.`);
     }
 
     const { data: machines } = await db.from("machines").select("*");
@@ -254,7 +312,7 @@ export class Runner {
         : `This computer is the backup. ${worker?.name ?? "Your worker"} does the work while it's online. Switch roles in Settings, Computers and apps if this one should do it.`);
     }
 
-    const { data, error } = await db.from("tasks").select("*").in("status", ["queued", "held", "working"]).order("created_at");
+    const { data, error } = await allRows(db.from("tasks").select("*").in("status", ["queued", "held", "working"]).order("created_at").order("id"));
     fail("Couldn't load tasks", error);
     const open = (data ?? []) as Task[];
     await this.checkJobs(open);
@@ -278,8 +336,7 @@ export class Runner {
       settings: live.settings,
       elapsed: windowElapsed(window.started_at),
       used: window.used,
-      recentRate: await live.usage.recentRate(),
-      studioSlots: live.machine.studio_slots || STUDIO_SLOTS,
+      studioSlots: live.settings.studio.limit ?? Math.max(live.settings.studio.lanes.length, 1),
       studioBusy: [...this.jobs.values()].filter(j => j.task.needs_studio).length,
       estimateFor: agent => estimate(agent, history),
     });
@@ -290,7 +347,21 @@ export class Runner {
     for (const { task, estimate } of plan.start) await this.launch(live, task, estimate, history);
 
     const running = open.filter(t => t.status === "working").length + plan.start.length;
-    if (running) return this.say(null);
+    const parentWait = waiting.filter(t => t.parent_id && !doneParents.has(t.parent_id)).length;
+    if (running) {
+      const why = [
+        parentWait && `${parentWait} waiting on an earlier task`,
+        plan.held.studio && `${plan.held.studio} waiting for a Studio slot`,
+        plan.held.agent && `${plan.held.agent} waiting for the same agent to finish in Studio`,
+        plan.held.pace && `${plan.held.pace} held for usage pace`,
+        plan.held.room && `${plan.held.room} waiting for a free spot`,
+      ].filter(Boolean);
+      return this.say(running < plan.limit && why.length ? `${running} of ${plan.limit} running. ${why.join(", ")}.` : null);
+    }
+    // Held back by pace on a stale reading? Check the real numbers before making anyone wait.
+    if (plan.wait !== undefined && live.settings.provider === "claude" && live.usage.stale) {
+      void live.usage.probe().then(() => this.soon());
+    }
     const blockedByParent = waiting.every(t => t.parent_id && !doneParents.has(t.parent_id));
     const left = Math.max(1, Math.ceil(WINDOW_MIN - windowElapsed(window.started_at)));
     const when = plan.wait === null
@@ -335,12 +406,13 @@ export class Runner {
     }
     // Vault work runs inside the vault. With no folder picked yet, start one in Documents.
     const vaultJob = isVaultTask(task as Task);
-    if (vaultJob && !live.settings.vault_path) {
+    const named = briefVault(task.brief);
+    if (vaultJob && !named && !live.settings.vault_path) {
       const vault_path = join(app.getPath("documents"), "RoSlop Vault");
       live.settings = { ...live.settings, vault_path };
       await db.from("settings").update({ vault_path }).eq("user_id", live.userId);
     }
-    const vault = live.settings.vault_path;
+    const vault = named ?? live.settings.vault_path;
     if (vault) {
       try {
         seedVault(vault);
@@ -348,22 +420,40 @@ export class Runner {
         events.add(task.id, "error", `Couldn't set up the vault at ${vault}: ${(e as Error).message}`);
       }
     }
+    // Vault work runs on real numbers, so fetch today's if the vault doesn't have them yet.
+    if (vaultJob && vault && task.agent === "lead" && latestPull(vault)?.day !== new Date().toISOString().slice(0, 10)) {
+      events.add(task.id, "note", "Pulling real numbers for hundreds of Roblox games first.");
+      await this.pullGames(vault).then(
+        r => events.add(task.id, "note", `Sorted ${r.count} games into ${r.types} type notes. Charts note: ${r.charts}`),
+        e => events.add(task.id, "error", `Couldn't pull game data: ${(e as Error).message}`),
+      );
+    }
     const cwd = vaultJob && vault ? vault : game?.project_path || join(app.getPath("userData"), "games", task.game_id ?? "general");
     mkdirSync(cwd, { recursive: true });
+    await fetchRefs(db, task.brief, cwd).catch(e => events.add(task.id, "error", `Couldn't download the reference files: ${(e as Error).message}`));
 
+    const lane = task.needs_studio ? this.pickLane(live.settings, task as Task) : null;
+    const crew = task.agent === "lead" ? await crewReport(db, task, [...this.jobs.values()].map(j => j.live())).catch(() => null) : null;
     const job = new Job(
-      { db, userId: live.userId, settings: live.settings, events, usage: live.usage, keys: allKeys(), history },
+      { crew, lane, db, userId: live.userId, settings: { ...live.settings, vault_path: vault }, events, usage: live.usage, keys: allKeys(), history },
       claimed as Task,
       game,
       cwd,
       answered,
     );
     this.jobs.set(task.id, job);
+    if (lane) this.held.set(task.id, { lane: lane.name, since: new Date().toISOString() });
     job.start();
     this.changed();
 
     void job.done.then(() => {
+      if (vaultJob && vault) {
+        try {
+          tidyLinks(vault);
+        } catch {}
+      }
       this.jobs.delete(task.id);
+      this.held.delete(task.id);
       this.changed();
       this.soon();
     });

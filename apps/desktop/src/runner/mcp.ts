@@ -31,10 +31,16 @@ function parse(out: string): string[] {
     .filter(n => /^[\w.-]+$/.test(n));
 }
 
-// MCP servers for the connectors the owner has switched on.
+// The Roblox Studio server goes by different names depending on how it was added.
+const STUDIO_NAMES = ["Roblox_Studio", "roblox_studio", "roblox-studio", "RobloxStudio", "robloxstudio", "roblox"];
+
+// MCP servers the crew may use without asking: the connectors switched on, plus Roblox Studio
+// under whatever name it was set up with. -p runs can't show a permission prompt.
 export function onServers(settings: Settings): string[] {
-  return Object.entries(settings.connectors)
+  const found = settings.mcp_found ?? [];
+  const on = Object.entries(settings.connectors)
     .filter(([, on]) => on)
-    .map(([id]) => serverFor(id, settings.mcp_found))
-    .filter((n): n is string => !!n);
+    .map(([id]) => serverFor(id, settings.mcp_found));
+  const studio = [...found.filter(n => /roblox|studio/i.test(n)), ...STUDIO_NAMES];
+  return [...new Set([...on, ...studio].filter((n): n is string => !!n))];
 }

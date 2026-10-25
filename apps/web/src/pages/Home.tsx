@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AGENT, ago, pct, projected, type Task } from "@roslop/core";
-import { answer, askLead } from "../data/actions";
+import { answer, askLead, reject } from "../data/actions";
 import { useData, useGameFilter, useSnap, useUsage } from "../data/store";
+import { GameBoard, StudioPanel } from "../ui/Board";
 import { Av, Icon, Media, Spark, agentName } from "../ui/bits";
 
 function greeting() {
@@ -27,6 +28,7 @@ function AskCard({ t }: { t: Task }) {
         {(t.ask?.options ?? []).map((o, i) => (
           <button key={o} className={`btn sm ${i === 0 ? "pri" : ""}`} onClick={() => answer(t, o)}>{o}</button>
         ))}
+        <button className="btn sm danger" onClick={() => reject(t)}>Reject</button>
         <Link className="btn sm ghost" to={`/tasks?open=${t.id}`}>Details</Link>
       </div>
     </div>
@@ -119,20 +121,12 @@ export function Home() {
             </div>
           </div>
           <div>
-            <div className="sec-h"><h3>Your games</h3><Link className="r" to="/games">All</Link></div>
-            <div className="card list">
-              {s.games.map(g => {
-                const stats = s.game_stats.filter(x => x.game_id === g.id).slice(-24);
-                const now = stats.at(-1)?.playing;
-                return (
-                  <Link key={g.id} to={`/games?g=${g.id}`} className="row" style={{ padding: "11px 14px", gap: 12 }}>
-                    <div className="grow"><div style={{ fontWeight: 500 }}>{g.name}</div><div className="muted small">{g.version} · {now !== undefined ? `${now} playing` : g.stage}</div></div>
-                    <Spark data={stats.map(x => x.playing)} w={72} />
-                  </Link>
-                );
-              })}
-              {!s.games.length && <Link to="/games" className="muted small" style={{ display: "block", padding: 14 }}>Add your first game</Link>}
-            </div>
+            <div className="sec-h"><h3>Where each game is</h3><Link className="r" to="/games">All</Link></div>
+            <GameBoard />
+          </div>
+          <div>
+            <div className="sec-h"><h3>Studio</h3></div>
+            <div className="card pad"><StudioPanel /></div>
           </div>
         </section>
       </div>

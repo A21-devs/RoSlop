@@ -13,7 +13,8 @@ function walk(dir: string, out: string[]) {
   }
   for (const e of entries) {
     if (out.length >= MAX_FILES) return;
-    if (e.name.startsWith(".") || e.name === "node_modules") continue;
+    // game notes are data, agents read the CSV instead
+    if (e.name.startsWith(".") || e.name === "node_modules" || (e.name === "Games" && dir.endsWith("References"))) continue;
     const p = join(dir, e.name);
     if (e.isDirectory()) walk(p, out);
     else if (e.name.endsWith(".md")) out.push(p);
@@ -41,7 +42,12 @@ export function noteAgents(text: string): string[] {
   return agents.map(a => a.toLowerCase());
 }
 
-export const FOLDERS = ["Games", "Design", "References", "References/img", "Market", "Lessons"];
+export const FOLDERS = ["Games", "Game Types", "Design", "References", "References/img", ...["VFX", "Modeling", "Building", "SFX", "Animation", "UI"].map(t => `References/${t}/img`), "Market", "Lessons"];
+
+// A request can name its own vault with a "Vault folder: <path>" line in the brief.
+export function briefVault(brief: string): string | null {
+  return brief.match(/^Vault folder: (.+)$/m)?.[1].trim() || null;
+}
 
 export function isVaultTask(t: Pick<Task, "title" | "brief">): boolean {
   return /\bvault\b|obsidian/i.test(`${t.title} ${t.brief}`);
@@ -63,9 +69,13 @@ What the crew knows about making our Roblox games. Every note links back here.
 
 ## Games
 
+## Game types
+[[Game Types]]
+
 ## Design
 
 ## References
+[[VFX]] · [[Modeling]] · [[Building]] · [[SFX]] · [[Animation]] · [[UI]]
 
 ## Market
 
