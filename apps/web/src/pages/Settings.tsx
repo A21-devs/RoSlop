@@ -3,10 +3,12 @@ import { NavLink, useParams } from "react-router-dom";
 import { AGENTS, ago, CONNECTORS, KEYS, MODELS, pct, projected, SAVINGS, serverFor, WINDOW_MIN, type AppEntry, type MachineRole, type RunnerStatus, type Settings as S, type Tier } from "@roslop/core";
 import { resetDemo } from "../data/demo";
 import { db, toast, useData, useSnap, useUsage } from "../data/store";
-import { Av, Icon, Toggle } from "../ui/bits";
+import { Av, Icon, Seg, Toggle } from "../ui/bits";
 import { ModelFields } from "../ui/ModelRules";
+import { saveStudio } from "../ui/Board";
+import { settingsOnlyHere } from "../data/supabase";
 
-const SECTIONS = [["usage", "Usage"], ["computers", "Computers and apps"], ["connectors", "Connectors"], ["keys", "Keys"], ["provider", "AI provider"], ["account", "Account"], ["look", "Look"]] as const;
+const SECTIONS = [["usage", "Usage"], ["studios", "Studios"], ["computers", "Computers and apps"], ["connectors", "Connectors"], ["keys", "Keys"], ["provider", "AI provider"], ["account", "Account"], ["look", "Look"]] as const;
 
 const save = (patch: Partial<S>) => db.saveSettings(patch);
 
@@ -363,6 +365,45 @@ function Provider() {
   );
 }
 
+const GAME_TYPES = ["Tycoon", "Simulator", "Incremental simulator", "RNG", "Tower defense", "Obby", "Battlegrounds", "RPG", "Horror", "Roleplay", "Shooter", "Racing", "Survival", "Story", "Fishing", "Pet sim", "Anime"];
+
+// Name each Studio the way you think of it and say what it's for. Agents get told which one is theirs.
+function Studios() {
+  const s = useSnap();
+  const st = s.settings.studio;
+  const save = (lanes: typeof st.lanes) => saveStudio(s.settings, { lanes });
+  const set = (i: number, patch: Partial<(typeof st.lanes)[number]>) => save(st.lanes.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const games = s.games;
+  return (
+    <>
+      <h1 className="page">Studios</h1>
+      <p className="lede">Give each Studio a name and say which game and what kind of game it's for. It's saved under that name, so the same Studio keeps its job, and agents are told which one is theirs.</p>
+      <div className="card pad col" style={{ marginTop: 18, gap: 10 }}>
+        <div className="row wrap" style={{ gap: 10 }}>
+          <span className="muted">Studios agents can have open at once</span>
+          <Seg value={st.limit === null ? "all" : String(st.limit)} onChange={v => saveStudio(s.settings, { limit: v === "all" ? null : Number(v) })} options={[["0", "Off"], ["1", "1"], ["2", "2"], ["3", "3"], ["all", "All"]]} />
+        </div>
+      </div>
+      <datalist id="game-types">{GAME_TYPES.map(t => <option key={t} value={t} />)}</datalist>
+      <div className="card list" style={{ marginTop: 14, padding: "0 16px" }}>
+        {st.lanes.map((l, i) => (
+          <div key={i} className="row wrap" style={{ padding: "12px 0", gap: 10 }}>
+            <input className="input mono" style={{ width: 200 }} defaultValue={l.name} onBlur={e => e.target.value.trim() && e.target.value !== l.name && set(i, { name: e.target.value.trim() })} />
+            <select className="input" style={{ width: 200 }} value={l.game_id ?? ""} onChange={e => set(i, { game_id: e.target.value || null })}>
+              <option value="">Any game</option>
+              {games.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+            <input className="input grow" list="game-types" placeholder="What kind of game (RNG, tycoon…)" defaultValue={l.type} onBlur={e => e.target.value !== l.type && set(i, { type: e.target.value.trim() })} />
+            <button className="btn sm ghost" disabled={st.lanes.length < 2} onClick={() => save(st.lanes.filter((_, j) => j !== i))}><Icon name="x" size={13} /></button>
+          </div>
+        ))}
+      </div>
+      <button className="btn" style={{ marginTop: 12 }} onClick={() => save([...st.lanes, { name: `Studio ${st.lanes.length + 1}`, game_id: null, type: "" }])}><Icon name="plus" size={14} />Add a Studio</button>
+      {settingsOnlyHere().includes("studio") && <div className="warn small" style={{ marginTop: 12 }}>Saved on this device only for now. Run the Supabase setup again so it syncs and the desktop app can use it.</div>}
+    </>
+  );
+}
+
 function Account() {
   const { user } = useData();
   const s = useSnap();
@@ -420,7 +461,7 @@ function Look() {
 
 export function Settings() {
   const { section = "usage" } = useParams();
-  const Page = { usage: Usage, computers: Computers, connectors: Connectors, keys: Keys, provider: Provider, account: Account, look: Look }[section] ?? Usage;
+  const Page = { usage: Usage, studios: Studios, computers: Computers, connectors: Connectors, keys: Keys, provider: Provider, account: Account, look: Look }[section] ?? Usage;
   return (
     <div className="content flush split" style={{ display: "grid", gridTemplateColumns: "220px 1fr", height: "100%" }}>
       <nav className="nav hide-m" style={{ padding: "22px 12px", borderRight: "1px solid var(--line)" }}>

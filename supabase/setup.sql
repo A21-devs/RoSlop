@@ -162,6 +162,7 @@ create table if not exists settings (
 alter table settings add column if not exists blender jsonb not null default '{}';
 alter table settings add column if not exists mcp_found jsonb;
 alter table settings add column if not exists templates jsonb not null default '[]';
+alter table settings add column if not exists studio jsonb not null default '{}';
 
 -- Each person only ever sees their own rows, and changes stream live to the app.
 do $$

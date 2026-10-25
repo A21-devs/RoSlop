@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assetKind, modelFor, readSignals, stripPlan, tokensToWindow, type Ask, type Game, type Settings, type Task } from "@roslop/core";
+import { assetKind, modelFor, readSignals, stripPlan, tokensToWindow, type Ask, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
 import type { ChildProcess } from "node:child_process";
 import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,6 +31,7 @@ export interface JobDeps {
   history: Pick<Task, "agent" | "used" | "status">[];
   // The Lead gets a report on the whole crew with every message.
   crew?: string | null;
+  lane?: StudioLane | null;
 }
 
 const STDERR_KEEP = 4000;
@@ -100,7 +101,7 @@ export class Job {
   private spawn(): ChildProcess {
     const { settings, keys } = this.deps;
     const task = this.task;
-    const system = systemPrompt(task, this.game, this.cwd, settings, Object.keys(keys).map(keyEnvName));
+    const system = systemPrompt(task, this.game, this.cwd, settings, Object.keys(keys).map(keyEnvName), this.deps.lane ?? null);
     const brief = task.brief.trim() || task.title;
     const env = Object.fromEntries(Object.entries(keys).map(([id, v]) => [keyEnvName(id), v]));
     const model = modelFor(task.agent, this.provider);

@@ -143,6 +143,18 @@ export interface MarketItem {
   genre: string;
   playing: number;
   likes: number | null;
+  // Filled in by the app's own Roblox pull; a Pulse chart pull only has the fields above.
+  place_id?: number;
+  subgenre?: string;
+  visits?: number;
+  favorites?: number;
+  like_ratio?: number | null;
+  age_days?: number;
+  updated?: string;
+  max_players?: number;
+  lists?: string[];
+  icon?: string | null;
+  quick?: boolean;
 }
 
 export interface MarketSnapshot extends Row {
@@ -179,6 +191,19 @@ export interface Template {
   refs: string[];
 }
 
+// A Studio the crew can use, named the way you name it, tied to a game and the kind of game it is.
+export interface StudioLane {
+  name: string;
+  game_id: string | null;
+  type: string;
+}
+
+export interface StudioSetup {
+  // How many Studios agents may have open at once. null means as many as there are lanes.
+  limit: number | null;
+  lanes: StudioLane[];
+}
+
 export interface Settings {
   user_id: string;
   provider: Provider;
@@ -196,6 +221,7 @@ export interface Settings {
   // What the worker saw in `claude mcp list` last time it checked. null = never checked.
   mcp_found: string[] | null;
   templates: Template[];
+  studio: StudioSetup;
 }
 
 export interface Tables {

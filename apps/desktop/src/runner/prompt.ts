@@ -1,11 +1,19 @@
-import { blenderBrief, type Game, type Settings, type Task } from "@roslop/core";
+import { blenderBrief, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
 import { PROMPTS, SHARED } from "../prompts";
 import { latestPull } from "./gamedata";
 import { refName, refPaths } from "./refs";
 import { isVaultTask, notesFor } from "./vault";
 
-export function systemPrompt(task: Task, game: Game | null, cwd: string, settings: Settings, keyNames: string[]): string {
+export function systemPrompt(task: Task, game: Game | null, cwd: string, settings: Settings, keyNames: string[], lane: StudioLane | null = null): string {
   const lines = ["## This job", `Game: ${game?.name ?? "none yet"}`, `Project folder: ${cwd}`];
+
+  if (lane) {
+    const others = settings.studio.lanes.filter(l => l.name !== lane.name).map(l => `"${l.name}"${l.type ? ` (${l.type})` : ""}`);
+    lines.push(
+      "",
+      `Your Studio is "${lane.name}"${lane.type ? `, set up for ${lane.type} games` : ""}. Work only in that one${others.length ? `; ${others.join(", ")} belong to other agents` : ""}.`,
+    );
+  }
 
   const refs = refPaths(task.brief);
   if (refs.length) lines.push("", "Reference files from the owner, look at these first:", ...refs.map(r => `- .roslop/refs/${refName(r)}`));

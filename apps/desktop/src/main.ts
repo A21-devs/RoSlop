@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { scanApps } from "./apps";
+import { gameInfo, openStudio } from "./studio";
 import { getKey, setKey } from "./keys";
 import { Runner } from "./runner";
 import { cliPaths, fixPath } from "./runner/cli";
@@ -74,6 +75,8 @@ function handlers() {
   ipcMain.handle("roslop:getKey", (_, id: string) => getKey(id));
   ipcMain.handle("roslop:setKey", (_, id: string, value: string | null) => setKey(id, value));
   ipcMain.handle("roslop:scanApps", () => scanApps());
+  ipcMain.handle("roslop:openStudio", (_, g) => openStudio(g));
+  ipcMain.handle("roslop:gameInfo", (_, universeId: number, placeId: number | null) => gameInfo(universeId, placeId));
   ipcMain.handle("roslop:pullGames", async (_, vault: string | null) => {
     const path = vault || join(app.getPath("documents"), "RoSlop Vault");
     const r = await runner.pullGames(path);

@@ -4,6 +4,21 @@ import { emptySnapshot, TABLES, type Change, type Db, type User } from "./db";
 
 const PAGE = 1000;
 
+function localExtras(): Partial<Settings> {
+  try {
+    return JSON.parse(localStorage.getItem("roslop-settings-extra") ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveExtras(patch: Record<string, unknown>) {
+  localStorage.setItem("roslop-settings-extra", JSON.stringify({ ...localExtras(), ...patch }));
+}
+
+// Settings saved only here because the database needs the setup run again.
+export const settingsOnlyHere = () => Object.keys(localExtras());
+
 // Turns Supabase's errors into something a person can act on.
 export function explain(e: { message?: string; code?: string } | null | undefined): string {
   const msg = e?.message ?? String(e);
@@ -84,11 +99,25 @@ export function cloudDb(url: string, anonKey: string): Db {
         check(e2);
       }
       const base = defaultSettings(uid);
-      const snap = emptySnapshot({ ...base, ...settings, savings: { ...base.savings, ...settings.savings }, blender: { ...base.blender, ...settings.blender } });
+      const extra = localExtras();
+      const merged = { ...base, ...settings, ...extra } as Settings;
+      const snap = emptySnapshot({
+        ...merged,
+        savings: { ...base.savings, ...merged.savings },
+        blender: { ...base.blender, ...merged.blender },
+        studio: { ...base.studio, ...merged.studio, lanes: merged.studio?.lanes?.length ? merged.studio.lanes : base.studio.lanes },
+      });
       // Events and stats grow forever, so only pull recent ones up front.
       // Supabase hands back at most 1,000 rows a request, so page through until there's no more.
       const since = new Date(Date.now() - 14 * 864e5).toISOString();
       await Promise.all(TABLES.map(async t => {
+        // Each Roblox pull holds every game, so only the latest few are needed.
+        if (t === "market_snapshots") {
+          const { data, error: e3 } = await sb.from(t).select("*").order("created_at", { ascending: false }).limit(4);
+          check(e3);
+          (snap as Record<string, unknown>)[t] = (data ?? []).reverse();
+          return;
+        }
         const rows: unknown[] = [];
         for (let from = 0; ; from += PAGE) {
           let q = sb.from(t).select("*").order("created_at", { ascending: true }).order("id");
@@ -184,6 +213,16 @@ export function cloudDb(url: string, anonKey: string): Db {
     async saveSettings(patch) {
       emit({ table: "settings", row: patch as Settings });
       const { error } = await sb.from("settings").update(patch).eq("user_id", current!.id);
+      // A column from a newer version that this project hasn't got yet: keep it on this device
+      // until the setup is run again, instead of losing the change.
+      const missing = error?.message.match(/'(\w+)' column/)?.[1];
+      if (missing && missing in patch) {
+        saveExtras({ [missing]: (patch as Record<string, unknown>)[missing] });
+        const rest = { ...patch } as Record<string, unknown>;
+        delete rest[missing];
+        if (Object.keys(rest).length) check((await sb.from("settings").update(rest).eq("user_id", current!.id)).error);
+        return;
+      }
       check(error);
     },
 

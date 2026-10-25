@@ -1,6 +1,6 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { app } from "electron";
-import { estimate, serverFor, windowElapsed, WINDOW_MIN, type Game, type Machine, type RunnerStatus, type Settings, type Task } from "@roslop/core";
+import { estimate, serverFor, windowElapsed, WINDOW_MIN, type Game, type MarketItem, type Machine, type RunnerStatus, type Settings, type StudioLane, type Task } from "@roslop/core";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { allKeys, getKey } from "../keys";
@@ -18,7 +18,7 @@ import { fetchRefs } from "./refs";
 import { crewReport } from "./crew";
 import { allRows } from "./db";
 import { RobloxUploads } from "./roblox";
-import { latestPull, pullGames, tidyLinks, writeGames, type PullResult } from "./gamedata";
+import { latestPull, looksQuick, pullGames, tidyLinks, writeGames, type PullResult } from "./gamedata";
 
 const POLL_MS = 20_000;
 const HEARTBEAT_MS = 60_000;
@@ -72,6 +72,7 @@ export class Runner {
       last_error: this.lastError,
       cli_detail: this.cliDetail,
       uploads: this.live ? this.live.uploads.state : null,
+      lanes: jobs.filter(j => this.held.has(j.task.id)).map(j => ({ ...this.held.get(j.task.id)!, agent: j.task.agent, task: j.task.title, game_id: j.task.game_id })),
       note: this.live ? this.note : this.lastError ? "The crew couldn't start." : "The crew isn't running yet.",
     };
   }
@@ -239,8 +240,13 @@ export class Runner {
         const result = writeGames(vault, rows);
         const live = this.live;
         if (live) {
-          const items = rows.slice(0, 100).map(g => ({ universe_id: g.universe_id, name: g.name, genre: g.genre, playing: g.playing, likes: g.up }));
+          const items: MarketItem[] = rows.map(g => ({
+            universe_id: g.universe_id, place_id: g.place_id, name: g.name, genre: g.genre, subgenre: g.subgenre, playing: g.playing,
+            likes: g.like_ratio, like_ratio: g.like_ratio, visits: g.visits, favorites: g.favorites, age_days: g.age_days, updated: g.updated,
+            max_players: g.max_players, lists: g.lists, icon: g.icon, quick: looksQuick(g),
+          }));
           await live.db.from("market_snapshots").insert({ user_id: live.userId, source: "roblox", sort: "charts and searches", items });
+          await live.db.from("market_snapshots").delete().eq("source", "roblox").lt("created_at", new Date(Date.now() - 14 * 864e5).toISOString());
         }
         return result;
       } finally {
@@ -249,6 +255,14 @@ export class Runner {
       }
     })();
     return this.pulling;
+  }
+
+  // Which Studio each running agent has, by the name you gave it.
+  private held = new Map<string, { lane: string; since: string }>();
+  private pickLane(settings: Settings, task: Task): StudioLane | null {
+    const taken = new Set([...this.held.values()].map(h => h.lane));
+    const free = settings.studio.lanes.filter(l => !taken.has(l.name));
+    return free.find(l => l.game_id && l.game_id === task.game_id) ?? free.find(l => !l.game_id) ?? free[0] ?? null;
   }
 
   // Only the computer doing the work uploads, so two machines don't both put a file on Roblox.
@@ -322,7 +336,7 @@ export class Runner {
       settings: live.settings,
       elapsed: windowElapsed(window.started_at),
       used: window.used,
-      studioSlots: live.machine.studio_slots || STUDIO_SLOTS,
+      studioSlots: live.settings.studio.limit ?? Math.max(live.settings.studio.lanes.length, 1),
       studioBusy: [...this.jobs.values()].filter(j => j.task.needs_studio).length,
       estimateFor: agent => estimate(agent, history),
     });
@@ -418,15 +432,17 @@ export class Runner {
     mkdirSync(cwd, { recursive: true });
     await fetchRefs(db, task.brief, cwd).catch(e => events.add(task.id, "error", `Couldn't download the reference files: ${(e as Error).message}`));
 
+    const lane = task.needs_studio ? this.pickLane(live.settings, task as Task) : null;
     const crew = task.agent === "lead" ? await crewReport(db, task, [...this.jobs.values()].map(j => j.live())).catch(() => null) : null;
     const job = new Job(
-      { crew, db, userId: live.userId, settings: { ...live.settings, vault_path: vault }, events, usage: live.usage, keys: allKeys(), history },
+      { crew, lane, db, userId: live.userId, settings: { ...live.settings, vault_path: vault }, events, usage: live.usage, keys: allKeys(), history },
       claimed as Task,
       game,
       cwd,
       answered,
     );
     this.jobs.set(task.id, job);
+    if (lane) this.held.set(task.id, { lane: lane.name, since: new Date().toISOString() });
     job.start();
     this.changed();
 
@@ -437,6 +453,7 @@ export class Runner {
         } catch {}
       }
       this.jobs.delete(task.id);
+      this.held.delete(task.id);
       this.changed();
       this.soon();
     });

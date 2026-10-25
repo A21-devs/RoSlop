@@ -71,6 +71,7 @@ export function withDefaults(userId: string, row: Partial<Settings> | null): Set
     apps: row.apps ?? [],
     connectors: row.connectors ?? {},
     blender: { ...base.blender, ...row.blender },
+    studio: { ...base.studio, ...row.studio, lanes: row.studio?.lanes?.length ? row.studio.lanes : base.studio.lanes },
   };
 }
 

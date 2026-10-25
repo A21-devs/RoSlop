@@ -23,6 +23,8 @@ const bridge: DesktopBridge = {
   setCliPath: (provider, path) => ipcRenderer.invoke("roslop:setCliPath", provider, path),
   scanApps: () => ipcRenderer.invoke("roslop:scanApps"),
   pullGames: vault => ipcRenderer.invoke("roslop:pullGames", vault),
+  openStudio: g => ipcRenderer.invoke("roslop:openStudio", g),
+  gameInfo: (universeId, placeId) => ipcRenderer.invoke("roslop:gameInfo", universeId, placeId),
   openPath: path => ipcRenderer.invoke("roslop:openPath", path),
 };
 

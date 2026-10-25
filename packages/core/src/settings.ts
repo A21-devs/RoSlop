@@ -82,6 +82,7 @@ export function defaultSettings(user_id: string): Settings {
     studio_mcp: null,
     blender: BLENDER_DEFAULTS,
     templates: [],
+    studio: { limit: null, lanes: [{ name: "Studio 1", game_id: null, type: "" }, { name: "Studio 2", game_id: null, type: "" }] },
     mcp_found: null,
   };
 }

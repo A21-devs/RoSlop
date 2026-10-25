@@ -226,3 +226,6 @@ h1.page { font-size: 26px; font-weight: 600; letter-spacing: -0.03em; line-heigh
 .pickable:hover .check, .pickable.picking .check { opacity: 1; }
 .pickable.picked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .pickable.picked .check { background: var(--accent); border-color: var(--accent); color: #fff; opacity: 1; }
+
+.btn.play { justify-content: center; color: #fff; border: 0; font-weight: 600; background: linear-gradient(90deg, #3d7eff, #7a5cff 55%, #c45cff); box-shadow: 0 4px 18px rgba(61, 126, 255, .25); }
+.btn.play:hover { filter: brightness(1.08); background: linear-gradient(90deg, #3d7eff, #7a5cff 55%, #c45cff); }
