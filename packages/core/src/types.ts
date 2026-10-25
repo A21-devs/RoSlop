@@ -113,6 +113,8 @@ export interface Machine extends Row {
   last_seen: string;
   studio_slots: number;
   provider: Provider | null;
+  // Roblox Studio windows actually open on that computer, counted by the desktop app.
+  studios_open?: number | null;
 }
 
 export interface Message extends Row {

@@ -18,6 +18,7 @@ import { fetchRefs } from "./refs";
 import { crewReport } from "./crew";
 import { allRows } from "./db";
 import { RobloxUploads } from "./roblox";
+import { countStudios } from "./studios";
 import { latestPull, looksQuick, pullGames, tidyLinks, writeGames, type PullResult } from "./gamedata";
 
 const POLL_MS = 20_000;
@@ -67,7 +68,7 @@ export class Runner {
       machine_id: this.live?.machine.id ?? null,
       provider: this.live?.settings.provider ?? "claude",
       cli_found: this.cli,
-      studios_open: jobs.filter(j => j.task.needs_studio).length,
+      studios_open: this.studiosOpen,
       working: jobs.map(j => j.task.title),
       last_error: this.lastError,
       cli_detail: this.cliDetail,
@@ -125,8 +126,10 @@ export class Runner {
         setInterval(() => void heartbeat(db, machine.id, live.settings.provider).catch(e => this.error(e)), HEARTBEAT_MS),
         setInterval(() => void recordStats(db, userId).catch(() => {}), STATS_MS),
         setInterval(() => this.uploadAssets(), 30_000),
+        setInterval(() => void this.watchStudios(), 10_000),
       );
       this.uploadAssets();
+      void this.watchStudios();
       void recordStats(db, userId).catch(() => {});
       this.lastError = null;
       this.tick();
@@ -255,6 +258,19 @@ export class Runner {
       }
     })();
     return this.pulling;
+  }
+
+  // Real Studio windows, so the bar matches what's on screen. Shared through the machine row
+  // so phones and the website see it too.
+  private studiosOpen = 0;
+  private async watchStudios() {
+    const live = this.live;
+    if (!live) return;
+    const n = await countStudios();
+    if (n === this.studiosOpen) return;
+    this.studiosOpen = n;
+    this.changed();
+    await live.db.from("machines").update({ studios_open: n }).eq("id", live.machine.id);
   }
 
   // Which Studio each running agent has, by the name you gave it.

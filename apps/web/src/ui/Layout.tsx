@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Crash } from "./Crash";
 import { CrewBar } from "./CrewBar";
 import { Viewer } from "./Viewer";
+import { useRunner } from "./Board";
 import { AGENTS, pace, pct } from "@roslop/core";
 import { useData, useSnap, useToasts, useUsage } from "../data/store";
 import { Av, Icon, Logo, Ring, type IconName } from "./bits";
@@ -100,8 +101,11 @@ function Top() {
   const loc = useLocation();
   const nav = useNavigate();
   const page = TITLES[loc.pathname.split("/")[1]] ?? "";
-  const busyStudios = s.tasks.filter(t => t.status === "working" && t.needs_studio).length;
-  const slots = s.machines.find(m => m.role === "worker")?.studio_slots ?? 4;
+  const worker = s.machines.find(m => m.role === "worker");
+  const st = useRunner();
+  // Real Studio windows from the desktop app; tasks marked as in Studio only if it can't tell.
+  const busyStudios = st?.studios_open ?? worker?.studios_open ?? s.tasks.filter(t => t.status === "working" && t.needs_studio).length;
+  const slots = Math.max(s.settings.studio.limit ?? s.settings.studio.lanes.length, busyStudios, 1);
   return (
     <header className="top">
       <div className="crumb"><span className="only-m"><Logo size={24} /></span><b>{page}</b></div>
@@ -111,7 +115,7 @@ function Top() {
       </select>
       <div className="grow" />
       <Meter />
-      <div className="slots hide-m" title="Roblox Studios the agents have open">
+      <div className="slots hide-m" title="Roblox Studio windows open on the computer running the crew">
         Studios {Array.from({ length: slots }, (_, i) => <i key={i} className={i < busyStudios ? "on" : ""} />)}
         <span>{busyStudios} of {slots}</span>
       </div>
