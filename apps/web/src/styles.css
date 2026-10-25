@@ -229,3 +229,12 @@ h1.page { font-size: 26px; font-weight: 600; letter-spacing: -0.03em; line-heigh
 
 .btn.play { justify-content: center; color: #fff; border: 0; font-weight: 600; background: linear-gradient(90deg, #3d7eff, #7a5cff 55%, #c45cff); box-shadow: 0 4px 18px rgba(61, 126, 255, .25); }
 .btn.play:hover { filter: brightness(1.08); background: linear-gradient(90deg, #3d7eff, #7a5cff 55%, #c45cff); }
+
+/* Lead chat: messages scroll on their own, the message box stays put underneath them. */
+.lead-page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.lead-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 28px 12px; }
+.lead-compose { flex: none; padding: 12px 28px 18px; border-top: 1px solid var(--line); background: var(--bg); }
+@media (max-width: 860px) {
+  .lead-scroll { padding: 16px 14px 10px; }
+  .lead-compose { padding: 10px 14px calc(84px + env(safe-area-inset-bottom)); }
+}

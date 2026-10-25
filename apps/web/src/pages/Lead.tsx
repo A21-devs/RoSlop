@@ -29,8 +29,9 @@ export function Lead() {
   };
 
   return (
-    <div className="content" style={{ display: "flex", flexDirection: "column", maxWidth: 860, margin: "0 auto", width: "100%" }}>
-      <div className="chat grow">
+    <div className="lead-page">
+      <div className="lead-scroll">
+      <div className="chat" style={{ maxWidth: 860, margin: "0 auto" }}>
         {!messages.length && (
           <div className="empty" style={{ marginTop: 40 }}>
             Tell the Lead what you want, big or small. It splits the work and hands each piece to the right agent.
@@ -70,7 +71,9 @@ export function Lead() {
         })}
         <div ref={end} />
       </div>
-      <div style={{ position: "sticky", bottom: 0, paddingTop: 12, background: "var(--bg)" }}>
+      </div>
+      <div className="lead-compose">
+      <div style={{ maxWidth: 860, margin: "0 auto" }}>
         {!online && <div className="small warn" style={{ marginBottom: 6 }}>{worker ? `${worker.name} looks offline. This waits in the queue until it's back.` : "No computer is set up to run the crew yet. Open the desktop app and sign in."}</div>}
         <div className="card row" style={{ padding: 8, alignItems: "flex-end" }}>
           <textarea
@@ -86,6 +89,7 @@ export function Lead() {
         </div>
         <div style={{ marginTop: 8 }}><Extras x={extras} about={text} compact /></div>
         <div className="dim small" style={{ marginTop: 6 }}>{AGENT.lead.job}</div>
+      </div>
       </div>
     </div>
   );
