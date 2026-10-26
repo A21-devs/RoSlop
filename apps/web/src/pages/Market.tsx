@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ago, type MarketItem } from "@roslop/core";
-import { messageAgent } from "../data/actions";
+import { messageAgent, pitchGame, type PitchMode } from "../data/actions";
 import { db, toast, useSnap } from "../data/store";
 import { Empty, Icon } from "../ui/bits";
 
@@ -13,7 +13,42 @@ const median = (ns: number[]) => (ns.length ? [...ns].sort((a, b) => a - b)[Math
 const AGES: [string, string, (d: number) => boolean][] = [["any", "Any age", () => true], ["30", "Under a month", d => d <= 30], ["120", "Under 4 months", d => d <= 120], ["365", "Under a year", d => d <= 365], ["old", "Over a year", d => d > 365]];
 const SIZES: [string, string, (n: number) => boolean][] = [["any", "Any size", () => true], ["10k", "10k+ playing", n => n >= 10000], ["1k", "1k to 10k", n => n >= 1000 && n < 10000], ["100", "100 to 1k", n => n >= 100 && n < 1000], ["small", "Under 100", n => n < 100]];
 
-function GameRows({ rows, pitch, limit = 100 }: { rows: Row[]; pitch(name: string): void; limit?: number }) {
+// Build our own take, or buy in: a stake at the % you pick, the whole thing, or both side by side.
+function PitchButton({ row }: { row: Row }) {
+  const s = useSnap();
+  const [at, setAt] = useState<DOMRect | null>(null);
+  const [percent, setPercent] = useState(30);
+  const go = async (mode: PitchMode) => {
+    setAt(null);
+    await pitchGame(s, row, mode, percent);
+    toast(mode === "build" ? "Pulse is writing our take" : "Pulse is writing the acquisition pitch");
+  };
+  return (
+    <>
+      <button className="btn sm ghost hide-m" style={{ width: 84 }} onClick={e => setAt(at ? null : e.currentTarget.getBoundingClientRect())}><Icon name="pitches" size={13} />Pitch</button>
+      {at && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setAt(null)} />
+          <div className="card col" style={{ position: "fixed", zIndex: 41, top: Math.min(at.bottom + 6, innerHeight - 280), left: Math.max(12, at.right - 270), width: 270, padding: 8, gap: 2, boxShadow: "0 10px 30px rgba(0,0,0,.4)" }}>
+            <div className="mono dim" style={{ padding: "4px 8px" }}>BUY INTO {row.name.toUpperCase().slice(0, 28)}</div>
+            <div className="row" style={{ padding: "4px 8px", gap: 8 }}>
+              <span className="muted small grow">Stake size</span>
+              <input type="range" min={5} max={95} step={5} value={percent} onChange={e => setPercent(Number(e.target.value))} style={{ width: 100 }} />
+              <b className="mono" style={{ width: 36, textAlign: "right" }}>{percent}%</b>
+            </div>
+            <button className="btn ghost" style={{ justifyContent: "flex-start" }} onClick={() => go("stake")}>Buy a {percent}% stake</button>
+            <button className="btn ghost" style={{ justifyContent: "flex-start" }} onClick={() => go("buyout")}>Buy it outright</button>
+            <button className="btn ghost" style={{ justifyContent: "flex-start" }} onClick={() => go("both")}>Both, side by side</button>
+            <div style={{ borderTop: "1px solid var(--line)", margin: "4px 0" }} />
+            <button className="btn ghost" style={{ justifyContent: "flex-start" }} onClick={() => go("build")}>Pitch our own take</button>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+function GameRows({ rows, limit = 100 }: { rows: Row[]; limit?: number }) {
   const [more, setMore] = useState(limit);
   return (
     <div className="card" style={{ overflow: "hidden" }}>
@@ -40,7 +75,7 @@ function GameRows({ rows, pitch, limit = 100 }: { rows: Row[]; pitch(name: strin
             <span className="mono dim hide-m" style={{ width: 52, textAlign: "right" }}>{r.likes !== null && r.likes !== undefined ? `${Math.round(r.likes)}%` : "–"}</span>
             <span className="mono dim hide-m" style={{ width: 52, textAlign: "right" }}>{r.age_days !== undefined ? `${r.age_days}d` : "–"}</span>
             <span className="mono" style={{ width: 62, textAlign: "right", color: r.change === null ? "var(--dim)" : r.change < 0 ? "var(--bad)" : "var(--ok)" }}>{r.change === null ? "new" : `${r.change > 0 ? "+" : ""}${Math.round(r.change * 100)}%`}</span>
-            <button className="btn sm ghost hide-m" style={{ width: 84 }} onClick={() => pitch(r.name)}><Icon name="pitches" size={13} />Pitch</button>
+            <PitchButton row={r} />
           </div>
         ))}
       </div>
@@ -129,7 +164,6 @@ export function Market() {
       toast("Asked Pulse. The desktop app pulls 1,000+ games straight from Roblox for free.");
     }
   };
-  const pitch = (name: string) => messageAgent(s, "pulse", `Pitch something off ${name}`, `${name} is doing well. Is there a game in this for us? Pitch it if there is, say no if there isn't.`, null).then(() => toast("Sent to Pulse"));
   const pct = (n: number) => `${Math.round(n * 100)}%`;
 
   return (
@@ -155,7 +189,7 @@ export function Market() {
                 ))}
                 {!lists.length && <span className="muted small">This pull came from Pulse, so it has one list. Pull from the desktop app to get every chart.</span>}
               </div>
-              <GameRows rows={lists.length ? sorted(rows.filter(r => r.lists?.includes(chart))) : sorted(rows)} pitch={pitch} />
+              <GameRows rows={lists.length ? sorted(rows.filter(r => r.lists?.includes(chart))) : sorted(rows)} />
             </>
           )}
 
@@ -173,7 +207,7 @@ export function Market() {
                 <input className="input grow" style={{ minWidth: 160 }} placeholder="Search names" value={q} onChange={e => setQ(e.target.value)} />
               </div>
               <div className="muted small" style={{ marginBottom: 8 }}>{corpus.length.toLocaleString()} games, {short(corpus.reduce((a, r) => a + r.playing, 0))} playing, median {short(median(corpus.map(r => r.playing)))} per game</div>
-              <GameRows rows={corpus} pitch={pitch} />
+              <GameRows rows={corpus} />
             </>
           )}
 
@@ -195,9 +229,9 @@ export function Market() {
 
           {view === "breakouts" && (
             <div className="col" style={{ gap: 18 }}>
-              <div><div className="sec-h"><h3>New and already big</h3><span className="r">made in the last 4 months</span></div><GameRows rows={[...rows].filter(r => (r.age_days ?? 999) <= 120).sort((a, b) => b.playing - a.playing)} pitch={pitch} limit={30} /></div>
-              {before && <div><div className="sec-h"><h3>Biggest climbs since the last pull</h3><span className="r">{ago(before.created_at)} ago</span></div><GameRows rows={[...rows].filter(r => r.change !== null && r.playing >= 200).sort((a, b) => (b.change ?? 0) - (a.change ?? 0))} pitch={pitch} limit={30} /></div>}
-              <div><div className="sec-h"><h3>Quick games pulling players</h3><span className="r">new, low effort builds doing numbers</span></div><GameRows rows={[...rows].filter(r => r.quick).sort((a, b) => b.playing - a.playing)} pitch={pitch} limit={30} /></div>
+              <div><div className="sec-h"><h3>New and already big</h3><span className="r">made in the last 4 months</span></div><GameRows rows={[...rows].filter(r => (r.age_days ?? 999) <= 120).sort((a, b) => b.playing - a.playing)} limit={30} /></div>
+              {before && <div><div className="sec-h"><h3>Biggest climbs since the last pull</h3><span className="r">{ago(before.created_at)} ago</span></div><GameRows rows={[...rows].filter(r => r.change !== null && r.playing >= 200).sort((a, b) => (b.change ?? 0) - (a.change ?? 0))} limit={30} /></div>}
+              <div><div className="sec-h"><h3>Quick games pulling players</h3><span className="r">new, low effort builds doing numbers</span></div><GameRows rows={[...rows].filter(r => r.quick).sort((a, b) => b.playing - a.playing)} limit={30} /></div>
             </div>
           )}
         </>

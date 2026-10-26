@@ -246,7 +246,7 @@ export class Runner {
           const items: MarketItem[] = rows.map(g => ({
             universe_id: g.universe_id, place_id: g.place_id, name: g.name, genre: g.genre, subgenre: g.subgenre, playing: g.playing,
             likes: g.like_ratio, like_ratio: g.like_ratio, visits: g.visits, favorites: g.favorites, age_days: g.age_days, updated: g.updated,
-            max_players: g.max_players, lists: g.lists, icon: g.icon, quick: looksQuick(g),
+            max_players: g.max_players, lists: g.lists, icon: g.icon, quick: looksQuick(g), creator: g.creator,
           }));
           await live.db.from("market_snapshots").insert({ user_id: live.userId, source: "roblox", sort: "charts and searches", items });
           await live.db.from("market_snapshots").delete().eq("source", "roblox").lt("created_at", new Date(Date.now() - 14 * 864e5).toISOString());

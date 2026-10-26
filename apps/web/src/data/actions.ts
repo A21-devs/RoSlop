@@ -1,4 +1,4 @@
-import { AGENT, estimate, type AgentId, type Game, type Pitch, type Priority, type Proof, type Task, type Verdict } from "@roslop/core";
+import { AGENT, estimate, type AgentId, type Game, type MarketItem, type Pitch, type Priority, type Proof, type Task, type Verdict } from "@roslop/core";
 import { db } from "./store";
 import type { Snapshot } from "./db";
 
@@ -62,11 +62,35 @@ export const bump = (t: Task, priority: Priority) => db.update("tasks", t.id, { 
 
 export async function decidePitch(s: Snapshot, p: Pitch, status: Pitch["status"], note = "") {
   await db.update("pitches", p.id, { status });
+  if (status === "approved" && p.details?.kind === "acquire") {
+    const d = p.details;
+    const deals = (d.deals ?? []).map(x => `- ${x.type === "stake" ? `${x.percent ?? "?"}% stake` : "Full buyout"}: ${x.price}. ${x.terms}`).join("\n");
+    await newTask(s, "producer", `Reach out about ${d.target?.name ?? p.title}`, `The owner wants to go after ${d.target?.name ?? p.title}${d.target?.creator ? ` by ${d.target.creator}` : ""}.\n\nOffer:\n${deals}\n\nValuation: ${d.valuation ?? ""}\n\nOutreach plan: ${d.outreach ?? ""}\n\nFind the best way to reach the creator, write the first message ready to send, and a short list of questions to ask before any money moves (real revenue, who owns what, why they'd sell). Don't send anything. Hand it back for the owner to send.`, null, { priority: "high" });
+    return;
+  }
   if (status === "approved") {
     const game = await db.insert("games", { name: p.title, stage: "designed", version: "v0.1", universe_id: null, place_id: null, project_path: null });
     await newTask(s, "architect", `Plan: ${p.title}`, `Write the game plan for this pitch.\n\n${p.summary}\n\nWhy: ${p.why}\n\nMoney: ${p.money}\nReuse: ${p.reuses.join(", ")}`, game.id, { priority: "high" });
   }
   if (status === "changes") await newTask(s, "pulse", `Rework pitch: ${p.title}`, `The owner wants changes to this pitch:\n${note}`, null);
+}
+
+export type PitchMode = "build" | "stake" | "buyout" | "both";
+
+// Pitch off a game from the Market: build our own take, or buy into it.
+export function pitchGame(s: Snapshot, g: MarketItem, mode: PitchMode, percent = 30) {
+  const facts = JSON.stringify({ name: g.name, universe_id: g.universe_id, place_id: g.place_id, creator: g.creator, genre: g.genre, type: g.subgenre, playing: g.playing, visits: g.visits, favorites: g.favorites, likes: g.likes, age_days: g.age_days, charts: g.lists?.filter(l => !l.startsWith("Search")) }, null, 1);
+  if (mode === "build") {
+    return newTask(s, "pulse", `Pitch our take on ${g.name}`, `Pitch a game of our own off ${g.name}. Always write the pitch, with a low score if it's weak.
+
+What we know about it:
+${facts}`, null, { priority: "high" });
+  }
+  const ask = mode === "stake" ? `a ${percent}% stake` : mode === "buyout" ? "a full buyout" : `two options side by side: a ${percent}% stake and a full buyout`;
+  return newTask(s, "pulse", `Acquisition pitch: ${g.name}`, `Pitch an acquisition of ${g.name}: ${ask}. Kind "acquire", with valuation, the deal${mode === "both" ? "s" : ""}, upside, outreach and risks. Always write the pitch, with a low score if it's a bad buy at a fair price.
+
+What we know about it:
+${facts}`, null, { priority: "high" });
 }
 
 export function pitchIdea(s: Snapshot, idea: string) {

@@ -78,6 +78,29 @@ export interface PitchStat {
   sub?: string;
 }
 
+export interface PitchDeal {
+  type: "stake" | "buyout";
+  percent?: number;
+  price: string;
+  terms: string;
+}
+
+// The richer parts of a pitch. "acquire" pitches are about buying a game that already exists.
+export interface PitchDetails {
+  kind?: "build" | "acquire";
+  window?: string;
+  tags?: string[];
+  different?: string;
+  vs?: string[];
+  proof?: string;
+  chosen?: string;
+  target?: { name: string; universe_id?: number; place_id?: number; creator?: string; playing?: number; visits?: number; likes?: number | null; age_days?: number };
+  deals?: PitchDeal[];
+  valuation?: string;
+  upside?: string;
+  outreach?: string;
+}
+
 export interface Pitch extends Row {
   title: string;
   summary: string;
@@ -91,6 +114,7 @@ export interface Pitch extends Row {
   score: number;
   status: "waiting" | "approved" | "changes" | "declined";
   source: Who;
+  details?: PitchDetails;
 }
 
 export type AssetKind = "icon" | "model" | "sound" | "vfx" | "ui" | "reference";
@@ -157,6 +181,7 @@ export interface MarketItem {
   lists?: string[];
   icon?: string | null;
   quick?: boolean;
+  creator?: string;
 }
 
 export interface MarketSnapshot extends Row {

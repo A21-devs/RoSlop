@@ -1,5 +1,5 @@
 import { AGENT } from "./agents";
-import type { AgentId, MarketItem, Pitch, PitchStat, Priority, Row } from "./types";
+import type { AgentId, MarketItem, Pitch, PitchDetails, PitchStat, Priority, Row } from "./types";
 
 // Agents talk back to the app with plain lines in their output:
 //   ASK: Which layout? | A | B
@@ -108,6 +108,29 @@ export function carriedLines(brief: string): string {
   return keep.join("\n\n");
 }
 
+function details(o: Record<string, unknown>): PitchDetails {
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : undefined);
+  const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined);
+  const t = o.target && typeof o.target === "object" ? (o.target as Record<string, unknown>) : null;
+  const num = (v: unknown) => (typeof v === "number" && isFinite(v) ? v : undefined);
+  return {
+    kind: o.kind === "acquire" ? "acquire" : "build",
+    window: str(o.window),
+    tags: list(o.tags),
+    different: str(o.different),
+    vs: list(o.vs),
+    proof: str(o.proof),
+    chosen: str(o.chosen),
+    target: t && typeof t.name === "string" ? { name: t.name, universe_id: num(t.universe_id), place_id: num(t.place_id), creator: str(t.creator), playing: num(t.playing), visits: num(t.visits), likes: num(t.likes) ?? null, age_days: num(t.age_days) } : undefined,
+    deals: Array.isArray(o.deals)
+      ? o.deals.filter((d): d is Record<string, unknown> => !!d && typeof d === "object").map(d => ({ type: d.type === "stake" ? "stake" as const : "buyout" as const, percent: num(d.percent), price: String(d.price ?? ""), terms: String(d.terms ?? "") }))
+      : undefined,
+    valuation: str(o.valuation),
+    upside: str(o.upside),
+    outreach: str(o.outreach),
+  };
+}
+
 // Pulse ends a pitch with a ```pitch block: one object or a list of them.
 export function readPitches(text: string): Omit<Pitch, keyof Row | "status" | "source">[] {
   const out: Omit<Pitch, keyof Row | "status" | "source">[] = [];
@@ -134,6 +157,7 @@ export function readPitches(text: string): Omit<Pitch, keyof Row | "status" | "s
         reuses: list(o.reuses),
         risks: list(o.risks),
         score: Math.max(0, Math.min(10, Math.round(Number(o.score) || 0))),
+        details: details(o),
       });
     }
   }

@@ -15,7 +15,10 @@ export async function saveMarket(db: SupabaseClient, userId: string, text: strin
 export async function savePitches(db: SupabaseClient, userId: string, text: string): Promise<number> {
   const pitches = readPitches(text);
   if (!pitches.length) return 0;
-  const { error } = await db.from("pitches").insert(pitches.map(p => ({ ...p, user_id: userId, status: "waiting", source: "pulse" })));
+  const rows = pitches.map(p => ({ ...p, user_id: userId, status: "waiting", source: "pulse" }));
+  let { error } = await db.from("pitches").insert(rows);
+  // Project not set up for the richer pitch yet: keep the basics rather than lose it.
+  if (error && /details/.test(error.message)) ({ error } = await db.from("pitches").insert(rows.map(({ details, ...r }) => ({ ...r, why: [r.why, details?.valuation, details?.outreach].filter(Boolean).join("\n\n") }))));
   fail("Couldn't save the pitch", error);
   return pitches.length;
 }
