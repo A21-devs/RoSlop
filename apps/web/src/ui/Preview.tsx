@@ -18,7 +18,7 @@ const VIDEO = ["mp4", "webm", "mov"];
 // Rendered previews are kept in this browser, so a model, picture or waveform is only worked
 // out once. Finished ones are also held in memory, so a card scrolled back into view shows its
 // picture straight away.
-type Made = { image: string; animated?: boolean; frames?: string[] };
+type Made = { image: string; animated?: boolean };
 const memory = new Map<string, Promise<Made>>();
 const ready = new Map<string, Made>();
 let opened: Promise<IDBDatabase | null> | null = null;
@@ -75,47 +75,47 @@ function useMade(key: string, make: () => Promise<Made>) {
   return { made, failed };
 }
 
-// Plays a rendered loop of frames, about 12 a second.
-function Frames({ frames }: { frames: string[] }) {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setI(v => (v + 1) % frames.length), 80);
-    return () => clearInterval(t);
-  }, [frames]);
-  return <img src={frames[i]} alt="" style={{ objectFit: "contain" }} />;
-}
-
 function ModelPreview({ src, kind }: { src: string; kind: string }) {
   const type = ext(src) as Ext;
-  const { made: thumb, failed } = useMade(`model2:${src}`, async () => {
-    const [{ renderThumb }, url] = await Promise.all([import("./three"), db.fileUrl(src)]);
-    return renderThumb(url, type);
-  });
-  const [hover, setHover] = useState(false);
+  const key = `still:${src}`;
+  // The still from last time shows at once while the live render gets going.
+  const [still, setStill] = useState<Made | null>(() => ready.get(key) ?? null);
+  const [live, setLive] = useState(false);
+  const [failed, setFailed] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const view = useRef<{ hover(on: boolean): void; stop(): void } | null>(null);
 
-  // Hovering a still model turns it around so you can look at it.
   useEffect(() => {
-    if (!hover || !canvas.current) return;
-    let stop = () => {};
     let alive = true;
-    Promise.all([import("./three"), db.fileUrl(src)]).then(([{ liveView }, url]) => {
-      if (alive && canvas.current) stop = liveView(canvas.current, url, type);
+    if (!ready.has(key)) void stored(key).then(v => v && alive && (ready.set(key, v), setStill(s => s ?? v)));
+    void import("./three").then(({ showModel }) => {
+      if (!alive || !canvas.current) return;
+      view.current = showModel(canvas.current, src, () => db.fileUrl(src), type, {
+        ready(image, animated) {
+          if (!alive) return;
+          setLive(true);
+          const v = { image, animated };
+          ready.set(key, v);
+          void keep(key, v);
+        },
+        failed() {
+          if (alive) setFailed(true);
+        },
+      });
     });
     return () => {
       alive = false;
-      stop();
+      view.current?.stop();
+      view.current = null;
     };
-  }, [hover, src]);
+  }, [src]);
 
-  const spin = hover && !thumb?.frames;
   return (
-    <div className="media preview" style={{ aspectRatio: "1" }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      {spin ? <canvas ref={canvas} style={{ width: "100%", height: "100%", display: "block" }} />
-        : thumb?.frames ? <Frames frames={thumb.frames} />
-        : thumb ? <img src={thumb.image} alt="" style={{ objectFit: "contain" }} />
-        : <div className="preview-note">{failed ? `Couldn't render this .${type}` : "Rendering…"}</div>}
-      <span className="preview-tag">{thumb?.animated || kind === "animation" ? "animation" : `.${type}`}</span>
+    <div className="media preview" style={{ aspectRatio: "1" }} onMouseEnter={() => view.current?.hover(true)} onMouseLeave={() => view.current?.hover(false)}>
+      <canvas ref={canvas} style={{ width: "100%", height: "100%", display: "block", position: "absolute", inset: 0, opacity: live ? 1 : 0 }} />
+      {!live && (still ? <img src={still.image} alt="" style={{ objectFit: "contain" }} />
+        : <div className="preview-note">{failed ? `Couldn't render this .${type}` : "Loading…"}</div>)}
+      <span className="preview-tag">{still?.animated || kind === "animation" ? "animation" : `.${type}`}</span>
     </div>
   );
 }
