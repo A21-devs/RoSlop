@@ -1,8 +1,11 @@
 import { blenderBrief, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
-import { PROMPTS, SHARED } from "../prompts";
+import { BUILDING, PROMPTS, SHARED } from "../prompts";
 import { latestPull } from "./gamedata";
 import { isVideo, refName, refPaths } from "./refs";
+import { shotCommand } from "./shots";
 import { isVaultTask, notesFor } from "./vault";
+
+const BUILD_WORDS = /\b(build|builds|building|map|maps|level|lobby|obby|house|base|island|world|terrain|area|zone|arena|stage|room|city|town|biome|layout|structure|tower|bridge|prop|props|scenery|environment|plot)\b/i;
 
 export function systemPrompt(task: Task, game: Game | null, cwd: string, settings: Settings, keyNames: string[], lane: StudioLane | null = null): string {
   const lines = ["## This job", `Game: ${game?.name ?? "none yet"}`, `Project folder: ${cwd}`];
@@ -26,6 +29,17 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
       "",
       `Material about ${game.name} itself comes from the game, never from the web: other games' screenshots don't show it. Open the place in Roblox Studio and use the Studio connection to look around, run it and capture screenshots, or ask for a Playtest.`,
       `Keep Studio in the background: start it minimized (${open}${game.project_path ? `, the place is in ${game.project_path}` : ""}) and don't bring windows to the front. If you can't reach Studio, say so in your DONE line instead of using something else.`,
+    );
+  }
+
+  const shot = task.needs_studio || ["scenic", "builder", "frame", "splash", "playtest", "kid"].includes(task.agent) ? shotCommand() : null;
+  if (shot) {
+    lines.push(
+      "",
+      "Seeing Studio: you can't see the screen, so take pictures and look at them with Read.",
+      `- Aim the camera with the Studio connection first, e.g. run_code: workspace.CurrentCamera.CFrame = CFrame.lookAt(Vector3.new(x, y, z), Vector3.new(tx, ty, tz)). Player eye height is about 5 studs above the ground.`,
+      `- Then save a picture: ${shot}. It works with Studio in the background. Use the title filter when more than one Studio is open.`,
+      "- Save them in .roslop/shots/ while you work. Copy the good ones to .roslop/proofs/ for PROOF lines.",
     );
   }
 
@@ -82,7 +96,9 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
     }
   }
 
-  return [SHARED.trim(), PROMPTS[task.agent].trim(), lines.join("\n")].join("\n\n");
+  // Scenic always builds; anyone else gets the guide when the job is putting geometry in a place.
+  const builds = task.agent === "scenic" || (["builder", "frame", "playtest"].includes(task.agent) && BUILD_WORDS.test(`${task.title} ${task.brief}`));
+  return [SHARED.trim(), PROMPTS[task.agent].trim(), builds ? BUILDING.trim() : "", lines.join("\n")].filter(Boolean).join("\n\n");
 }
 
 export function keyEnvName(id: string) {

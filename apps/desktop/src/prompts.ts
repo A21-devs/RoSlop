@@ -1,5 +1,6 @@
 import type { AgentId } from "@roslop/core";
 import shared from "@roslop/core/agents/_shared.md";
+import building from "@roslop/core/agents/_building.md";
 import architect from "@roslop/core/agents/architect.md";
 import balance from "@roslop/core/agents/balance.md";
 import builder from "@roslop/core/agents/builder.md";
@@ -17,6 +18,7 @@ import scenic from "@roslop/core/agents/scenic.md";
 import splash from "@roslop/core/agents/splash.md";
 
 export const SHARED = shared;
+export const BUILDING = building;
 
 export const PROMPTS: Record<AgentId, string> = {
   architect, balance, builder, frame, kid, lead, librarian, liveops,
