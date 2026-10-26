@@ -45,6 +45,18 @@ Aim for what the best Roblox builders post on X, not "a Roblox map". DailyInnova
 
 Before DONE, put your best picture next to the reference and name the three biggest differences. Fix them and look again. Don't stop at "fine".
 
+## Stylized fantasy and anime RPG worlds
+
+The big stylized Roblox RPGs and sea games aren't built from parts. They're custom meshes with hand-painted textures, laid out like a level from a real studio. When the target looks like that:
+
+- Kit first. Before laying anything out, make or gather a kit of 15 to 30 pieces in the target style: wall and roof pieces, a door, a window, a fence, two or three rock and cliff sizes, two or three tree types, bushes, grass clumps, props. Make them in Blender, textured to the texturing guide, or take them from the owner's Library. Then build only from the kit, so everything matches.
+- Exaggerate. Chunky silhouettes, thick roofs with deep overhangs, oversized trees with clumped leaf masses (not single leaves), buildings about 1.2 to 1.5 times real size so they read from a distance.
+- Terrain is painted. Use stylized MaterialVariants (painted grass, rock and sand) and blend materials at edges. Sculpt cliffs and big rock meshes into the terrain instead of steep smooth hills. For coastlines, run sand into shallow water with foam, and a gradient from turquoise shallows to deep blue.
+- Vistas. Every area has a landmark you can see from far away (a castle, a giant tree, a lighthouse, a mountain), with layered silhouettes fading into coloured fog behind it.
+- Atmosphere is colour graded. Use teal or purple in the shadows and warm golden sun, coloured fog that matches the sky, and saturated colours without going neon. Moody areas get darker ambient light with strong warm or magic light sources.
+- Life. Add ambient particles (drifting leaves, fireflies, dust motes, sea spray, embers), moving water, swaying flags and banners, and birds.
+- Towns have character: crooked timber framing, stone bases, signboards, lanterns, market stalls, clutter at doorways, and paths worn into the grass.
+
 ## Look at it, every pass
 
 Work in passes: layout, shapes, detail, lighting. After each pass, take at least three pictures: top down, from spawn at eye height, and a wide angle. Read them and write down what's wrong: floating or sunken parts, gaps, flicker, empty areas, wrong scale next to a character, everything one colour, a path you can't follow. Fix it and take the pictures again. Don't say DONE until it holds up next to the reference. PROOF the final pictures.

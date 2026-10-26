@@ -1,4 +1,4 @@
-import type { BlenderRules, Settings } from "./types";
+import type { BlenderRules, Settings, StyleTarget } from "./types";
 
 export const SAVINGS = [
   { id: "short_handoffs", name: "Short handoffs", what: "Agents pass a summary to the next one, not the whole chat", cut: 0.3 },
@@ -88,6 +88,7 @@ export function defaultSettings(user_id: string): Settings {
     blender: BLENDER_DEFAULTS,
     templates: [],
     folders: [],
+    style: [],
     studio: { limit: null, lanes: [{ name: "Studio 1", game_id: null, type: "" }, { name: "Studio 2", game_id: null, type: "" }] },
     mcp_found: null,
   };
@@ -107,6 +108,21 @@ export function withDefaults(base: Settings, row: Partial<Settings> | null | und
     apps: Array.isArray(set.apps) ? set.apps : base.apps,
     templates: Array.isArray(set.templates) ? set.templates : base.templates,
     folders: Array.isArray(set.folders) ? set.folders : base.folders,
+    style: Array.isArray(set.style) ? set.style.map(t => (typeof t === "string" ? { type: "", target: t } : t)).filter(t => t?.target) : base.style,
     studio: { limit: studio.limit ?? null, lanes: Array.isArray(studio.lanes) && studio.lanes.length ? studio.lanes : base.studio.lanes },
   };
 }
+
+// The style targets for a job: the task's own if it has them, otherwise the ones saved for its
+// kind of game plus the ones for every game.
+export const STYLE_LINE = /^Style targets \(this task only\): (.+)$/m;
+
+export function stylesFor(style: StyleTarget[], about: string): string[] {
+  const own = about.match(STYLE_LINE)?.[1];
+  if (own) return own.split(" | ").map(t => t.trim()).filter(Boolean);
+  const text = about.toLowerCase();
+  return style.filter(s => !s.type || text.includes(s.type.toLowerCase())).map(s => s.target);
+}
+
+// Kinds of game, for Studios and style targets.
+export const GAME_TYPES = ["Tycoon", "Simulator", "Incremental simulator", "RNG", "Tower defense", "Obby", "Battlegrounds", "RPG", "Horror", "Roleplay", "Shooter", "Racing", "Survival", "Story", "Fishing", "Pet sim", "Anime"];

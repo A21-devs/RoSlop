@@ -1,12 +1,14 @@
 import { blenderBrief, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
-import { BUILDING, PROMPTS, SHARED, TEXTURING } from "../prompts";
+import { BUILDING, MODELING, PROMPTS, SHARED, TEXTURING } from "../prompts";
 import { latestPull } from "./gamedata";
 import { isVideo, refName, refPaths } from "./refs";
 import { shotCommand } from "./shots";
+import { frameServerInfo } from "./style";
 import { isVaultTask, notesFor } from "./vault";
 
-const BUILD_WORDS = /\b(build|builds|building|map|maps|level|lobby|obby|house|base|island|world|terrain|area|zone|arena|stage|room|city|town|biome|layout|structure|tower|bridge|prop|props|scenery|environment|plot)\b/i;
+export const BUILD_WORDS = /\b(build|builds|building|map|maps|level|lobby|obby|house|base|island|world|terrain|area|zone|arena|stage|room|city|town|biome|layout|structure|tower|bridge|prop|props|scenery|environment|plot)\b/i;
 const TEXTURE_WORDS = /\b(model|models|modeling|modelling|mesh|meshes|texture|textures|texturing|textured|prop|props|blender|asset|assets|weapon|weapons|sword|tool|character|tree|trees|rock|rocks|crate|furniture|hand-?painted|stylized|material|materials)\b/i;
+const MODEL_WORDS = /\b(pet|pets|boss|bosses|egg|eggs|weapon|weapons|sword|swords|gun|guns|staff|bow|axe|hammer|scythe|katana|model|models|modeling|mob|mobs|enemy|enemies|npc|npcs|creature|creatures|dino|dinos|dinosaur|mount|mounts|simulator|tycoon|accessory|accessories)\b/i;
 
 export function systemPrompt(task: Task, game: Game | null, cwd: string, settings: Settings, keyNames: string[], lane: StudioLane | null = null): string {
   const lines = ["## This job", `Game: ${game?.name ?? "none yet"}`, `Project folder: ${cwd}`];
@@ -44,6 +46,11 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
     );
   }
 
+  const frames = frameServerInfo();
+  if (frames && (isVaultTask(task) || ["scenic", "librarian", "splash", "director", "builder", "frame"].includes(task.agent))) {
+    lines.push("", `Frames from any gameplay video (YouTube, X, TikTok, Medal...): curl -s "http://127.0.0.1:${frames.port}/frames?token=${frames.token}&url=<the link, url-encoded>&out=<absolute folder>". It saves 16 frames across the video. Read them and keep only the good ones. Use this for in-game references instead of thumbnails.`);
+  }
+
   const apps = settings.apps.filter(a => a.on && a.agents.includes(task.agent));
   if (apps.length) {
     lines.push("", "Apps you can use on this computer:");
@@ -68,7 +75,10 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
       "- Notes are plain .md files you write straight into it. Folders: Games (our own games only), Game Types, Design, References (VFX, Modeling, Building, SFX, Animation, UI, each with an img folder), Market, Lessons.",
       "- Start every note with frontmatter: `for: [agent ids that should read it]` and `tags: [...]`.",
       "- Link related notes with [[Note name]], and add each new note under its heading in Home.md.",
-      "- References cover VFX, modeling and building most, then SFX, animation and UI, each in its own References/<topic> folder. Search the web, the Roblox creator store and dev forum, YouTube and ArtStation, keep what's actually useful, and download the images with curl into that folder's img and embed them with ![[file.png]]. One note per topic (slash VFX, low poly props, lobby layouts...) with the source links, what makes it work and how to do it in Roblox.",
+      "- References cover VFX, modeling and building most, then SFX, animation and UI, each in its own References/<topic> folder, images in that folder's img, embedded with ![[file.png]]. One note per topic (slash VFX, low poly props, lobby layouts...) with the source links, what makes it work and how to do it in Roblox.",
+      "- References have to be good enough to copy. Only real in-game Roblox shots of the thing itself, at its best: top games, builders and artists people follow (DevForum Creations Feedback and showcase posts, X posts from Roblox builders and modelers, ArtStation Roblox work, gameplay videos). Never game icons, thumbnails, key art or drawings (except in UI or thumbnail notes), never stock photos or other engines' games, never AI images, and nothing blurry, tiny (under about 800 pixels wide), watermarked or off topic.",
+      "- Read every image after you download it and delete the ones that fail. Five great references beat forty bad ones. Say in the note why each one is there.",
+      "- Owner-picked references (notes with \"Added by the owner\") always win. Find more like those.",
       "- Short and specific beats long. Check what's there first and update a note instead of making a near copy.",
       "- Never write TBD, TODO, placeholders or made-up numbers. If you don't have a number, leave that line out.",
       isVaultTask(task)
@@ -98,10 +108,14 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
     }
   }
 
-  // Scenic always builds; anyone else gets the guide when the job is putting geometry in a place.
-  const builds = task.agent === "scenic" || (["builder", "frame", "playtest"].includes(task.agent) && BUILD_WORDS.test(`${task.title} ${task.brief}`));
-  const textures = ["librarian", "scenic", "splash", "builder"].includes(task.agent) && TEXTURE_WORDS.test(`${task.title} ${task.brief}`);
-  return [SHARED.trim(), PROMPTS[task.agent].trim(), builds ? BUILDING.trim() : "", textures ? TEXTURING.trim() : "", lines.join("\n")].filter(Boolean).join("\n\n");
+  // Each guide goes to whoever's job touches it. The Art Director judges everything, so it gets all three.
+  const about = `${task.title} ${task.brief}`;
+  const director = task.agent === "director";
+  const builds = director || task.agent === "scenic" || (["builder", "frame", "playtest"].includes(task.agent) && BUILD_WORDS.test(about));
+  const makers = ["librarian", "scenic", "splash", "builder"].includes(task.agent);
+  const textures = director || (makers && TEXTURE_WORDS.test(about));
+  const models = director || (makers && MODEL_WORDS.test(about));
+  return [SHARED.trim(), PROMPTS[task.agent].trim(), builds ? BUILDING.trim() : "", models ? MODELING.trim() : "", textures ? TEXTURING.trim() : "", lines.join("\n")].filter(Boolean).join("\n\n");
 }
 
 export function keyEnvName(id: string) {

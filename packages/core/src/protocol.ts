@@ -104,7 +104,7 @@ export function assetKind(name: string, mime = ""): "icon" | "model" | "sound" |
 // Lines a brief carries down to the tasks the Lead splits it into.
 export function carriedLines(brief: string): string {
   const keep: string[] = [];
-  for (const re of [/^Vault folder: .+$/m, /^Reference files: .+$/m, /^Model rules \(this task only\):\n(?:- .+\n?)+/m]) {
+  for (const re of [/^Vault folder: .+$/m, /^Reference files: .+$/m, /^Style targets \(this task only\): .+$/m, /^Model rules \(this task only\):\n(?:- .+\n?)+/m]) {
     const m = brief.match(re);
     if (m) keep.push(m[0].trim());
   }

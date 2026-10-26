@@ -1,6 +1,6 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { app } from "electron";
-import { estimate, serverFor, windowElapsed, WINDOW_MIN, type Game, type MarketItem, type Machine, type RunnerStatus, type Settings, type StudioLane, type Task } from "@roslop/core";
+import { estimate, serverFor, stylesFor, windowElapsed, WINDOW_MIN, type Game, type MarketItem, type Machine, type RunnerStatus, type Settings, type StudioLane, type Task } from "@roslop/core";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { allKeys, getKey } from "../keys";
@@ -16,6 +16,9 @@ import { Usage } from "./usage";
 import { priceBrief } from "./rowatcher";
 import { afterJob } from "./director";
 import { gatherStuff } from "./stuff";
+import { BUILD_WORDS } from "./prompt";
+import { IMPORT_TITLE, runImport } from "./imports";
+import { frameServer, styleRefs } from "./style";
 import { briefVault, isVaultTask, seedVault } from "./vault";
 import { fetchRefs } from "./refs";
 import { crewReport } from "./crew";
@@ -124,6 +127,7 @@ export class Runner {
       };
       this.live = live;
       void this.checkConnectors();
+      void frameServer();
       live.timers.push(
         setInterval(() => this.tick(), POLL_MS),
         setInterval(() => void heartbeat(db, machine.id, live.settings.provider).catch(e => this.error(e)), HEARTBEAT_MS),
@@ -473,6 +477,16 @@ export class Runner {
         events.add(task.id, "error", `Couldn't set up the vault at ${vault}: ${(e as Error).message}`);
       }
     }
+    // Imports from the Vault page are just downloads, so this computer does them without an agent.
+    if (IMPORT_TITLE.test(task.title)) {
+      const result = vault
+        ? await runImport(db, vault, claimed.brief as string, t => events.add(task.id, "note", t)).catch(e => `Import failed: ${(e as Error).message}`)
+        : "Pick a vault folder first.";
+      await db.from("tasks").update({ status: "done", result, finished_at: new Date().toISOString(), used: 0 }).eq("id", task.id);
+      this.changed();
+      this.soon();
+      return;
+    }
     // Vault work runs on real numbers, so fetch today's if the vault doesn't have them yet.
     if (vaultJob && vault && task.agent === "lead" && latestPull(vault)?.day !== new Date().toISOString().slice(0, 10)) {
       events.add(task.id, "note", "Pulling real numbers for hundreds of Roblox games first.");
@@ -485,10 +499,22 @@ export class Runner {
     mkdirSync(cwd, { recursive: true });
     await fetchRefs(db, task.brief, cwd).catch(e => events.add(task.id, "error", `Couldn't download the reference files: ${(e as Error).message}`));
 
-    const stuff = await gatherStuff(db, claimed as Task, game, cwd, vault).catch(e => {
+    let stuff = await gatherStuff(db, claimed as Task, game, cwd, vault).catch(e => {
       events.add(task.id, "error", `Couldn't gather the Library and vault for this: ${(e as Error).message}`);
       return null;
     });
+    // Gameplay videos the owner wants things to look like, as frames, for anyone making visuals.
+    const visual = ["scenic", "librarian", "splash", "director", "frame"].includes(task.agent) || (task.agent === "builder" && BUILD_WORDS.test(`${task.title} ${task.brief}`));
+    // The game's kind comes from its Studio's setup, so styles saved for "RPG" reach RPG work.
+    const kind = live.settings.studio.lanes.filter(l => l.game_id && l.game_id === task.game_id).map(l => l.type).join(" ");
+    const videos = [...stylesFor(live.settings.style, `${kind} ${game?.name ?? ""} ${task.title} ${claimed.brief}`), ...(claimed.brief as string).match(/https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|x\.com|twitter\.com|tiktok\.com|instagram\.com|vm\.tiktok\.com|streamable\.com|medal\.tv)\/\S+/gi) ?? []];
+    if (visual && videos.length) {
+      const lines = await styleRefs([...new Set(videos)], cwd, t => events.add(task.id, "note", t)).catch(() => [] as string[]);
+      if (lines.length) {
+        const style = ["## What it should look like", "Frames from the gameplay videos the owner picked as the target look. Before you start, Read at least 8 of them spread across every folder, write down the palette, scale, lighting, density and shapes you see, and match them. The owner's references and these frames win over the general bar.", ...lines].join("\n");
+        stuff = [stuff, style].filter(Boolean).join("\n\n");
+      }
+    }
     const lane = task.needs_studio ? this.pickLane(live.settings, task as Task) : null;
     const crew = task.agent === "lead" ? await crewReport(db, task, [...this.jobs.values()].map(j => j.live())).catch(() => null) : null;
     const job = new Job(

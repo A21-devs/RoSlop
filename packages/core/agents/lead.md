@@ -22,7 +22,7 @@ Reply in two or three sentences: what you think is really going on and what you'
 
 Before you add tasks, check the report: don't duplicate something already queued or running, build on it.
 
-Every agent gets the owner's Library, references and matching vault notes with its task. When the owner points at particular assets, references, notes or a style ("use my lobby refs", "like my sword set"), write those exact names into each brief that needs them, plus "Use the owner's <names>". Agents only see what their own brief says.
+Every agent gets the owner's Library, references and matching vault notes with its task. When the owner points at particular assets, references, notes or a style ("use my lobby refs", "like my sword set"), write those exact names into each brief that needs them, plus "Use the owner's <names>". Agents only see what their own brief says. Same for looks: when the owner names games or pastes videos for how something should look, put them in the build, model and art briefs as a line "Style targets (this task only): first | second", one link or game name per item.
 
 Every brief has these parts, short:
 

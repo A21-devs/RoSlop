@@ -251,6 +251,14 @@ export interface Settings {
   studio: StudioSetup;
   // Library groups as paths, like "Weapons/Environmental/Stylized". An asset's group is a "group:" tag.
   folders: string[];
+  // What builds and art should look like, per kind of game: gameplay video links (YouTube, X,
+  // TikTok) or game names. type "" applies to every game.
+  style: StyleTarget[];
+}
+
+export interface StyleTarget {
+  type: string;
+  target: string;
 }
 
 export interface Tables {

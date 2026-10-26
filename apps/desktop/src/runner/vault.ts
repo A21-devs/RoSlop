@@ -1,6 +1,7 @@
 import type { AgentId, Task } from "@roslop/core";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { BUILDING, MODELING, TEXTURING } from "../prompts";
 
 const MAX_FILES = 3000;
 
@@ -56,6 +57,7 @@ export function isVaultTask(t: Pick<Task, "title" | "brief">): boolean {
 // Folders and a Home note, so there's something to open in Obsidian before the crew writes anything.
 export function seedVault(vault: string) {
   for (const f of FOLDERS) mkdirSync(join(vault, f), { recursive: true });
+  seedStyleNotes(vault);
   const home = join(vault, "Home.md");
   if (!existsSync(home)) {
     writeFileSync(home, `---
@@ -81,6 +83,39 @@ What the crew knows about making our Roblox games. Every note links back here.
 
 ## Lessons
 `);
+  }
+}
+
+// The crew's style guides, as notes the owner can read and add to. Written once; after that the
+// note is theirs and never overwritten.
+function section(md: string, heading: string): string {
+  const at = md.indexOf(`## ${heading}`);
+  if (at < 0) return "";
+  const next = md.indexOf("\n## ", at + 3);
+  return md.slice(at, next < 0 ? undefined : next).replace(/^## .*\n/, "").trim();
+}
+
+function styleNotes(): [string, string, string][] {
+  const after = (md: string, from: string, to: string) => {
+    const a = md.indexOf(`## ${from}`), b = md.indexOf(`## ${to}`);
+    return a < 0 ? "" : md.slice(a, b < 0 ? undefined : b).trim();
+  };
+  return [
+    ["References/Building/Showcase builds.md", "scenic, builder, director, librarian", `## Scale\n\n${section(BUILDING, "Scale (Roblox studs)")}\n\n## Looking good\n\n${section(BUILDING, "Making it look good")}\n\n## The bar\n\n${section(BUILDING, "The bar: showcase quality")}`],
+    ["References/Building/Stylized RPG worlds.md", "scenic, builder, director, librarian", section(BUILDING, "Stylized fantasy and anime RPG worlds")],
+    ["References/Building/Simulator and tycoon builds.md", "scenic, builder, director", section(MODELING, "Building simulators and tycoons from parts")],
+    ["References/Modeling/Pets, eggs, weapons and bosses.md", "librarian, scenic, splash, builder, director", after(MODELING, "Pets", "Building simulators")],
+    ["References/Modeling/Hand-painted texturing.md", "librarian, scenic, splash, director", TEXTURING.replace(/^# .*\n/, "").trim()],
+  ];
+}
+
+function seedStyleNotes(vault: string) {
+  for (const [rel, agents, body] of styleNotes()) {
+    const file = join(vault, rel);
+    if (!body || existsSync(file)) continue;
+    mkdirSync(dirname(file), { recursive: true });
+    const title = basename(rel, ".md");
+    writeFileSync(file, `---\nfor: [${agents}]\ntags: [style, guide]\n---\n\n# ${title}\n\nHow the crew builds and models this. Add your own notes and pictures; the crew reads this before that kind of work.\n\n${body}\n\n[[${rel.startsWith("References/Building") ? "Building" : "Modeling"}]] · [[Home]]\n`);
   }
 }
 

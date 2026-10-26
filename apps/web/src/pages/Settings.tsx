@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useParams } from "react-router-dom";
-import { AGENTS, ago, CONNECTORS, KEYS, MODELS, pct, projected, SAVINGS, needsSignIn, serverFor, WINDOW_MIN, type AppEntry, type MachineRole, type RunnerStatus, type Settings as S, type Tier } from "@roslop/core";
+import { AGENTS, ago, CONNECTORS, GAME_TYPES, KEYS, MODELS, pct, projected, SAVINGS, needsSignIn, serverFor, WINDOW_MIN, type AppEntry, type MachineRole, type RunnerStatus, type Settings as S, type Tier } from "@roslop/core";
 import { resetDemo } from "../data/demo";
 import { db, toast, useData, useSnap, useUsage } from "../data/store";
 import { Av, Icon, Seg, Toggle } from "../ui/bits";
@@ -8,7 +8,7 @@ import { ModelFields } from "../ui/ModelRules";
 import { saveStudio } from "../ui/Board";
 import { settingsOnlyHere } from "../data/supabase";
 
-const SECTIONS = [["usage", "Usage"], ["studios", "Studios"], ["computers", "Computers and apps"], ["connectors", "Connectors"], ["keys", "Keys"], ["provider", "AI provider"], ["account", "Account"], ["look", "Look"]] as const;
+const SECTIONS = [["usage", "Usage"], ["studios", "Studios"], ["style", "Style targets"], ["computers", "Computers and apps"], ["connectors", "Connectors"], ["keys", "Keys"], ["provider", "AI provider"], ["account", "Account"], ["look", "Look"]] as const;
 
 const save = (patch: Partial<S>) => db.saveSettings(patch);
 
@@ -400,7 +400,6 @@ function Provider() {
   );
 }
 
-const GAME_TYPES = ["Tycoon", "Simulator", "Incremental simulator", "RNG", "Tower defense", "Obby", "Battlegrounds", "RPG", "Horror", "Roleplay", "Shooter", "Racing", "Survival", "Story", "Fishing", "Pet sim", "Anime"];
 
 // Name each Studio the way you think of it and say what it's for. Agents get told which one is theirs.
 function Studios() {
@@ -494,9 +493,53 @@ function Look() {
   );
 }
 
+function Style() {
+  const st = useSnap().settings;
+  const [text, setText] = useState("");
+  const [type, setType] = useState("");
+  const list = st.style;
+  const add = () => {
+    const items = text.split(/\n/).map(t => t.trim()).filter(Boolean).filter(t => !list.some(x => x.target === t && x.type === type.trim()));
+    if (items.length) void save({ style: [...list, ...items.map(target => ({ type: type.trim(), target }))] });
+    setText("");
+  };
+  const groups = [...new Set(list.map(x => x.type))].sort((x, y) => (x ? 1 : 0) - (y ? 1 : 0) || x.localeCompare(y));
+  return (
+    <>
+      <h1 className="page">Style targets</h1>
+      <p className="lede">What builds, models and art should look like, for each kind of game. Paste gameplay videos from YouTube, X, TikTok or Medal, or type a game's name and RoSlop finds its gameplay on YouTube. Your computer downloads each video once and pulls frames from it. Building, modeling and art tasks study the ones for their kind of game (set on the Studio it runs in, or named in the task), plus the ones for every game. You can also pick or add some for a single task in Lead chat.</p>
+      <div className="card pad col" style={{ marginTop: 18, gap: 10 }}>
+        <textarea className="textarea" style={{ minHeight: 70 }} placeholder={"https://www.youtube.com/watch?v=…\nhttps://x.com/…/status/…\nRell Seas"} value={text} onChange={e => setText(e.target.value)} />
+        <div className="row wrap" style={{ gap: 8 }}>
+          <span className="muted small">For</span>
+          <input className="input" list="style-types" style={{ width: 200 }} placeholder="Every game" value={type} onChange={e => setType(e.target.value)} />
+          <span className="muted small grow">One per line. Gameplay works best, not trailers made of drawings.</span>
+          <button className="btn pri sm" disabled={!text.trim()} onClick={add}>Add</button>
+        </div>
+        <datalist id="style-types">{GAME_TYPES.map(t => <option key={t} value={t} />)}</datalist>
+      </div>
+      {groups.map(g => (
+        <div key={g || "any"} className="card list" style={{ marginTop: 14, padding: "0 16px" }}>
+          <div style={{ padding: "10px 0 4px", fontWeight: 600 }}>{g || "Every game"}</div>
+          {list.filter(x => x.type === g).map(x => (
+            <div key={x.target} className="row" style={{ padding: "8px 0", gap: 10 }}>
+              <Icon name={/^https?:/.test(x.target) ? "right" : "games"} size={14} style={{ color: "var(--muted)" }} />
+              <span className={`grow ${/^https?:/.test(x.target) ? "mono small" : ""}`} style={{ wordBreak: "break-all" }}>{x.target}</span>
+              <button className="btn sm ghost" onClick={() => save({ style: list.filter(y => y !== x) })}><Icon name="x" size={13} /></button>
+            </div>
+          ))}
+        </div>
+      ))}
+      {!list.length && <div className="card pad muted" style={{ marginTop: 14 }}>Nothing yet. Without targets, agents aim for the general bar in their guides.</div>}
+      {settingsOnlyHere().includes("style") && <div className="warn small" style={{ marginTop: 12 }}>Saved on this device only. Run the Supabase setup again so the desktop app can use these.</div>}
+      <p className="muted small" style={{ marginTop: 10 }}>A video link pasted into any task gets the same treatment for that task.</p>
+    </>
+  );
+}
+
 export function Settings() {
   const { section = "usage" } = useParams();
-  const Page = { usage: Usage, studios: Studios, computers: Computers, connectors: Connectors, keys: Keys, provider: Provider, account: Account, look: Look }[section] ?? Usage;
+  const Page = { usage: Usage, studios: Studios, style: Style, computers: Computers, connectors: Connectors, keys: Keys, provider: Provider, account: Account, look: Look }[section] ?? Usage;
   return (
     <div className="content flush split" style={{ display: "grid", gridTemplateColumns: "220px 1fr", height: "100%" }}>
       <nav className="nav hide-m" style={{ padding: "22px 12px", borderRight: "1px solid var(--line)" }}>

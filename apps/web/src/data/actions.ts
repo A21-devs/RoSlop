@@ -107,6 +107,15 @@ What we know about it:
 ${facts}`, null, { priority: "high" });
 }
 
+// The owner's own references, pulled straight into the vault by their computer (no agent).
+export async function importRefs(s: Snapshot, o: { area: string; topic: string; links: string[]; files: File[] }) {
+  const paths: string[] = [];
+  for (const f of o.files) paths.push(await db.upload(f, "vault-import"));
+  const where = `${o.area}${o.topic.trim() ? ` / ${o.topic.trim()}` : ""}`;
+  const brief = [`Area: ${o.area}`, o.topic.trim() ? `Topic: ${o.topic.trim()}` : "", paths.length ? `Reference files: ${paths.join(", ")}` : "", o.links.length ? `Links:\n${o.links.join("\n")}` : ""].filter(Boolean).join("\n");
+  return newTask(s, "librarian", `Vault import: ${where}`, brief, null, { priority: "high", needs_studio: false, estimate: 0 });
+}
+
 export function pitchIdea(s: Snapshot, idea: string) {
   return newTask(s, "pulse", `Pitch my idea: ${idea.slice(0, 60)}`, `The owner has an idea. Check it against the charts and write it up as a pitch, honestly.\n\n${idea}`, null);
 }
