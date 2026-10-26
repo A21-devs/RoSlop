@@ -49,30 +49,63 @@ function dispose(obj: THREE.Object3D) {
   });
 }
 
-// One renderer for every thumbnail, one render at a time, so a page of models never runs out
-// of WebGL contexts.
+// One renderer for every thumbnail, so a page of models never runs out of WebGL contexts.
+// Files download and parse a few at a time, newest first so what's on screen now goes ahead
+// of what was scrolled past; drawing is quick and happens straight after.
 let shared: THREE.WebGLRenderer | null = null;
-let queue: Promise<unknown> = Promise.resolve();
+const waiting: (() => void)[] = [];
+let running = 0;
+const AT_ONCE = 4;
 
-export function renderThumb(url: string, ext: Ext, size = 320): Promise<{ image: string; animated: boolean }> {
-  const job = queue.then(async () => {
+function slot(): Promise<() => void> {
+  return new Promise(go => {
+    const start = () => {
+      running++;
+      go(() => {
+        running--;
+        waiting.pop()?.();
+      });
+    };
+    if (running < AT_ONCE) start();
+    else waiting.push(start);
+  });
+}
+
+export interface Thumb {
+  image: string;
+  animated: boolean;
+  frames?: string[];
+}
+
+export async function renderThumb(url: string, ext: Ext, size = 256): Promise<Thumb> {
+  const done = await slot();
+  try {
+    const { scene: obj, clips } = await load(url, ext);
     shared ??= new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     shared.setSize(size, size, false);
-    const { scene: obj, clips } = await load(url, ext);
     const { scene, camera } = stage(obj);
+    const shot = () => {
+      shared!.render(scene, camera);
+      return shared!.domElement.toDataURL("image/webp", 0.8);
+    };
+    let frames: string[] | undefined;
     if (clips.length) {
-      // Show the pose a little way into the animation rather than a T-pose.
+      // A short loop of the animation, so the card plays it without being hovered.
       const mixer = new THREE.AnimationMixer(obj);
       mixer.clipAction(clips[0]).play();
-      mixer.update(clips[0].duration * 0.3);
+      const n = 16, step = clips[0].duration / n;
+      frames = [];
+      for (let i = 0; i < n; i++) {
+        frames.push(shot());
+        mixer.update(step);
+      }
     }
-    shared.render(scene, camera);
-    const image = shared.domElement.toDataURL("image/webp", 0.85);
+    const image = frames ? frames[Math.floor(frames.length * 0.3)] : shot();
     dispose(obj);
-    return { image, animated: clips.length > 0 };
-  });
-  queue = job.catch(() => {});
-  return job;
+    return { image, animated: clips.length > 0, frames };
+  } finally {
+    done();
+  }
 }
 
 // A live view for the card under the mouse: plays the first animation and turns slowly.

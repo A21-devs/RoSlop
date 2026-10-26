@@ -3,6 +3,12 @@ import { defaultSettings, withDefaults, type GameStat, type Settings, type Table
 import { emptySnapshot, TABLES, type Change, type Db, type User } from "./db";
 
 const PAGE = 1000;
+// Every card used to ask for its own signed link, again each time it scrolled back into view.
+// Links are now asked for in one batch per frame and reused until shortly before they expire.
+const LINK_LIFE = 3600;
+const links = new Map<string, { url: Promise<string>; until: number }>();
+const asked = new Map<string, (url: string) => void>();
+let flush: ReturnType<typeof setTimeout> | null = null;
 
 function localExtras(): Partial<Settings> {
   try {
@@ -236,10 +242,29 @@ export function cloudDb(url: string, anonKey: string): Db {
       check(error);
       return path;
     },
-    async fileUrl(path) {
-      if (/^(https?|data|blob):/.test(path)) return path;
-      const { data } = await sb.storage.from("files").createSignedUrl(path, 3600);
-      return data?.signedUrl ?? "";
+    fileUrl(path) {
+      if (/^(https?|data|blob):/.test(path)) return Promise.resolve(path);
+      const hit = links.get(path);
+      if (hit && hit.until > Date.now()) return hit.url;
+      const url = new Promise<string>(done => {
+        asked.set(path, done);
+        flush ??= setTimeout(async () => {
+          const batch = [...asked];
+          asked.clear();
+          flush = null;
+          for (let i = 0; i < batch.length; i += 100) {
+            const part = batch.slice(i, i + 100);
+            const { data } = await sb.storage.from("files").createSignedUrls(part.map(([p]) => p), LINK_LIFE);
+            const got = new Map((data ?? []).map(d => [d.path, d.signedUrl]));
+            for (const [p, res] of part) {
+              if (!got.get(p)) links.delete(p);
+              res(got.get(p) ?? "");
+            }
+          }
+        }, 0);
+      });
+      links.set(path, { url, until: Date.now() + (LINK_LIFE - 300) * 1000 });
+      return url;
     },
 
     async session() {

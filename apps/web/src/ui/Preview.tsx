@@ -15,10 +15,15 @@ const MODEL = ["glb", "gltf", "fbx", "obj"];
 const AUDIO = ["mp3", "ogg", "wav", "m4a", "flac"];
 const VIDEO = ["mp4", "webm", "mov"];
 
-// Rendered previews are kept in this browser, so a model or waveform is only worked out once.
-const memory = new Map<string, Promise<{ image: string; animated?: boolean }>>();
+// Rendered previews are kept in this browser, so a model, picture or waveform is only worked
+// out once. Finished ones are also held in memory, so a card scrolled back into view shows its
+// picture straight away.
+type Made = { image: string; animated?: boolean; frames?: string[] };
+const memory = new Map<string, Promise<Made>>();
+const ready = new Map<string, Made>();
+let opened: Promise<IDBDatabase | null> | null = null;
 function idb(): Promise<IDBDatabase | null> {
-  return new Promise(done => {
+  return (opened ??= new Promise(done => {
     try {
       const r = indexedDB.open("roslop-previews", 1);
       r.onupgradeneeded = () => r.result.createObjectStore("p");
@@ -27,9 +32,9 @@ function idb(): Promise<IDBDatabase | null> {
     } catch {
       done(null);
     }
-  });
+  }));
 }
-async function stored(key: string): Promise<{ image: string; animated?: boolean } | null> {
+async function stored(key: string): Promise<Made | null> {
   const d = await idb();
   if (!d) return null;
   return new Promise(done => {
@@ -38,40 +43,58 @@ async function stored(key: string): Promise<{ image: string; animated?: boolean 
     r.onerror = () => done(null);
   });
 }
-async function keep(key: string, v: { image: string; animated?: boolean }) {
+async function keep(key: string, v: Made) {
   const d = await idb();
   d?.transaction("p", "readwrite").objectStore("p").put(v, key);
 }
-function cached(key: string, make: () => Promise<{ image: string; animated?: boolean }>) {
+function cached(key: string, make: () => Promise<Made>) {
   if (!memory.has(key)) {
     memory.set(key, stored(key).then(async hit => {
-      if (hit) return hit;
-      const v = await make();
-      void keep(key, v);
+      const v = hit ?? await make();
+      if (!hit) void keep(key, v);
+      ready.set(key, v);
       return v;
     }));
+    memory.get(key)!.catch(() => memory.delete(key));
   }
   return memory.get(key)!;
 }
 
-function ModelPreview({ src, kind }: { src: string; kind: string }) {
-  const [thumb, setThumb] = useState<{ image: string; animated?: boolean } | null>(null);
+function useMade(key: string, make: () => Promise<Made>) {
+  const [made, setMade] = useState<Made | null>(() => ready.get(key) ?? null);
   const [failed, setFailed] = useState(false);
-  const [hover, setHover] = useState(false);
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const type = ext(src) as Ext;
-
   useEffect(() => {
+    if (!key) return;
+    if (ready.has(key)) return setMade(ready.get(key)!);
     let alive = true;
-    cached(`model:${src}`, async () => {
-      const [{ renderThumb }, url] = await Promise.all([import("./three"), db.fileUrl(src)]);
-      return renderThumb(url, type);
-    }).then(t => alive && setThumb(t), () => alive && setFailed(true));
+    cached(key, make).then(v => alive && setMade(v), () => alive && setFailed(true));
     return () => {
       alive = false;
     };
-  }, [src]);
+  }, [key]);
+  return { made, failed };
+}
 
+// Plays a rendered loop of frames, about 12 a second.
+function Frames({ frames }: { frames: string[] }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI(v => (v + 1) % frames.length), 80);
+    return () => clearInterval(t);
+  }, [frames]);
+  return <img src={frames[i]} alt="" style={{ objectFit: "contain" }} />;
+}
+
+function ModelPreview({ src, kind }: { src: string; kind: string }) {
+  const type = ext(src) as Ext;
+  const { made: thumb, failed } = useMade(`model2:${src}`, async () => {
+    const [{ renderThumb }, url] = await Promise.all([import("./three"), db.fileUrl(src)]);
+    return renderThumb(url, type);
+  });
+  const [hover, setHover] = useState(false);
+  const canvas = useRef<HTMLCanvasElement>(null);
+
+  // Hovering a still model turns it around so you can look at it.
   useEffect(() => {
     if (!hover || !canvas.current) return;
     let stop = () => {};
@@ -85,12 +108,38 @@ function ModelPreview({ src, kind }: { src: string; kind: string }) {
     };
   }, [hover, src]);
 
+  const spin = hover && !thumb?.frames;
   return (
     <div className="media preview" style={{ aspectRatio: "1" }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      {hover ? <canvas ref={canvas} style={{ width: "100%", height: "100%", display: "block" }} />
+      {spin ? <canvas ref={canvas} style={{ width: "100%", height: "100%", display: "block" }} />
+        : thumb?.frames ? <Frames frames={thumb.frames} />
         : thumb ? <img src={thumb.image} alt="" style={{ objectFit: "contain" }} />
         : <div className="preview-note">{failed ? `Couldn't render this .${type}` : "Rendering…"}</div>}
-      <span className="preview-tag">{thumb?.animated || kind === "animation" ? <><Icon name="right" size={10} />hover to play</> : `.${type}`}</span>
+      <span className="preview-tag">{thumb?.animated || kind === "animation" ? "animation" : `.${type}`}</span>
+    </div>
+  );
+}
+
+// Pictures in storage are shrunk once to card size, so a page of them doesn't download and
+// decode every full-size file again on each visit.
+function ImagePreview({ src }: { src: string }) {
+  // Links (Roblox thumbnails), data and gifs are shown as they are.
+  const direct = /^(https?|data|blob):/.test(src) || /\.gif$/i.test(src);
+  const { made, failed } = useMade(direct ? "" : `img:${src}`, async () => {
+    const blob = await (await fetch(await db.fileUrl(src))).blob();
+    const bmp = await createImageBitmap(blob);
+    const scale = Math.min(1, 360 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * scale);
+    c.height = Math.round(bmp.height * scale);
+    c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close();
+    return { image: c.toDataURL("image/webp", 0.82) };
+  });
+  if (direct || failed) return <Media src={src} style={{ aspectRatio: "1", background: "var(--raise)" }} />;
+  return (
+    <div className="media" style={{ aspectRatio: "1", background: "var(--raise)" }}>
+      {made && <img src={made.image} alt="" decoding="async" />}
     </div>
   );
 }
@@ -99,11 +148,8 @@ function ModelPreview({ src, kind }: { src: string; kind: string }) {
 let playing: { audio: HTMLAudioElement; stop: () => void } | null = null;
 
 function SoundPreview({ src }: { src: string }) {
-  const [wave, setWave] = useState<string | null>(null);
   const [on, setOn] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    cached(`wave:${src}`, async () => {
+  const wave = useMade(`wave:${src}`, async () => {
       const url = await db.fileUrl(src);
       const buf = await (await fetch(url)).arrayBuffer();
       const ctx = new OfflineAudioContext(1, 1, 44100);
@@ -126,12 +172,8 @@ function SoundPreview({ src }: { src: string }) {
         const h = Math.max(3, (p / top) * 110);
         g.fillRect(i * 5 + 2, 70 - h / 2, 3, h);
       });
-      return { image: c.toDataURL("image/png"), animated: false, length: audio.duration } as { image: string };
-    }).then(v => alive && setWave(v.image), () => {});
-    return () => {
-      alive = false;
-    };
-  }, [src]);
+      return { image: c.toDataURL("image/png") };
+  }).made?.image;
 
   const toggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -170,10 +212,17 @@ function VideoPreview({ src }: { src: string }) {
       alive = false;
     };
   }, [src]);
+  // Plays while it's on screen, stops when it scrolls away.
+  useEffect(() => {
+    const el = v.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => (e.isIntersecting ? void el.play().catch(() => {}) : el.pause()), { threshold: 0.4 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [url]);
   return (
-    <div className="media preview" style={{ aspectRatio: "1" }} onMouseEnter={() => void v.current?.play().catch(() => {})} onMouseLeave={() => { if (v.current) { v.current.pause(); v.current.currentTime = 0; } }}>
-      {url && <video ref={v} src={url} muted loop playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-      <span className="preview-tag"><Icon name="right" size={10} />hover to play</span>
+    <div className="media preview" style={{ aspectRatio: "1" }}>
+      {url && <video ref={v} src={url} muted loop playsInline autoPlay preload="auto" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
     </div>
   );
 }
@@ -194,18 +243,11 @@ function BlendPreview({ a, e }: { a: Asset; e: string }) {
 
 function RbxPreview({ a, src }: { a: Asset; src: string }) {
   const s = useSnap();
-  const [info, setInfo] = useState<ReturnType<typeof describe> & { error?: string } | null>(null);
-  useEffect(() => {
-    let alive = true;
-    cached(`rbx:${src}`, async () => {
-      const url = await db.fileUrl(src);
-      const sum = readRbx(await (await fetch(url)).arrayBuffer());
-      return { image: JSON.stringify({ ...describe(sum), error: sum.error }) };
-    }).then(v => alive && setInfo(JSON.parse(v.image)), e => alive && setInfo({ kind: "other", line: "", detail: [], error: String(e) }));
-    return () => {
-      alive = false;
-    };
-  }, [src]);
+  const read = useMade(`rbx:${src}`, async () => {
+    const sum = readRbx(await (await fetch(await db.fileUrl(src))).arrayBuffer());
+    return { image: JSON.stringify({ ...describe(sum), error: sum.error }) };
+  });
+  const info = (read.made ? JSON.parse(read.made.image) : read.failed ? { kind: "other", line: "", detail: [], error: "Couldn't read this file" } : null) as (ReturnType<typeof describe> & { error?: string }) | null;
   const asking = s.tasks.some(t => t.title === `Preview: ${a.name}` && ["queued", "working", "held"].includes(t.status));
   return (
     <div className="media preview" style={{ aspectRatio: "1", background: "var(--raise)" }}>
@@ -230,7 +272,7 @@ export function AssetPreview({ a }: { a: Asset }) {
   if (rendered) {
     return (
       <div style={{ position: "relative" }}>
-        <Media src={rendered} style={{ aspectRatio: "1", background: "var(--raise)" }} />
+        <ImagePreview src={rendered} />
         <span className="preview-tag">.{e} · rendered in {e === "blend" ? "Blender" : "Studio"}</span>
       </div>
     );
@@ -240,5 +282,5 @@ export function AssetPreview({ a }: { a: Asset }) {
   if (AUDIO.includes(e) || (a.kind === "sound" && !/^https?:/.test(src))) return <SoundPreview src={src} />;
   if (VIDEO.includes(e)) return <VideoPreview src={src} />;
   if (["blend", "dae", "stl"].includes(e)) return <BlendPreview a={a} e={e} />;
-  return <Media src={src} style={{ aspectRatio: "1", background: "var(--raise)" }} />;
+  return <ImagePreview src={src} />;
 }
