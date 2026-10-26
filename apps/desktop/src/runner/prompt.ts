@@ -1,7 +1,7 @@
 import { blenderBrief, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
 import { PROMPTS, SHARED } from "../prompts";
 import { latestPull } from "./gamedata";
-import { refName, refPaths } from "./refs";
+import { isVideo, refName, refPaths } from "./refs";
 import { isVaultTask, notesFor } from "./vault";
 
 export function systemPrompt(task: Task, game: Game | null, cwd: string, settings: Settings, keyNames: string[], lane: StudioLane | null = null): string {
@@ -16,7 +16,9 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
   }
 
   const refs = refPaths(task.brief);
-  if (refs.length) lines.push("", "Reference files from the owner, look at these first:", ...refs.map(r => `- .roslop/refs/${refName(r)}`));
+  if (refs.length) lines.push("", "Reference files from the owner, look at these first:", ...refs.map(r => isVideo(r)
+    ? `- .roslop/refs/${refName(r)} is a video. You can't watch it, so look at .roslop/refs/${refName(r)}.frames.jpg, 12 frames across it with the time on each. If ffmpeg is installed and you need more, pull frames yourself (ffmpeg -i <video> -vf fps=1 frame_%03d.png).`
+    : `- .roslop/refs/${refName(r)}`));
 
   if (game) {
     const open = process.platform === "win32" ? `start "" /min "<place file>"` : `open -g "<place file>"`;

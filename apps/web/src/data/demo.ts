@@ -98,7 +98,7 @@ export function demoDb(): Db {
       snap = { ...snap, settings: { ...snap.settings, ...patch } };
       emit({ table: "settings", row: snap.settings });
     },
-    async upload(file) {
+    async upload(file: File | Blob) {
       return await new Promise<string>(res => {
         const r = new FileReader();
         r.onload = () => res(String(r.result));

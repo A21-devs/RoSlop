@@ -1,4 +1,5 @@
 import { AGENT, estimate, type AgentId, type AssetKind, type Game, type MarketItem, type Pitch, type Priority, type Proof, type Task, type Verdict } from "@roslop/core";
+import { frameSheet, isVideo } from "../ui/frames";
 import { db } from "./store";
 import type { Snapshot } from "./db";
 
@@ -120,6 +121,10 @@ export async function publish(g: Game) {
 
 export async function uploadAsset(file: File, kind: AssetKind, game_id: string | null, tags: string[] = []) {
   const path = await db.upload(file, kind === "reference" ? "references" : "assets");
+  if (isVideo(file.name, file.type) && db.mode !== "demo") {
+    const sheet = await frameSheet(file);
+    if (sheet) await db.upload(sheet, "", `${path}.frames.jpg`).catch(() => {});
+  }
   await db.insert("assets", { name: file.name.replace(/\.[^.]+$/, ""), kind, file_url: path, roblox_id: null, tags, game_id });
   return path;
 }

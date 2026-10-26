@@ -8,6 +8,8 @@ export function refPaths(brief: string): string[] {
   return line ? line.split(",").map(p => p.trim()).filter(Boolean) : [];
 }
 
+export const isVideo = (path: string) => /\.(mp4|webm|mov|m4v|mkv|avi)$/i.test(path);
+
 export const refName = (path: string) => basename(path).replace(/^\d+-/, "");
 
 // Pulled down into .roslop/refs so the agent can open them like any other file.
@@ -20,5 +22,9 @@ export async function fetchRefs(db: SupabaseClient, brief: string, cwd: string) 
     const { data, error } = await db.storage.from("files").download(p);
     if (error || !data) throw new Error(error?.message ?? `missing ${p}`);
     writeFileSync(join(dir, refName(p)), Buffer.from(await data.arrayBuffer()));
+    if (isVideo(p)) {
+      const sheet = await db.storage.from("files").download(`${p}.frames.jpg`);
+      if (sheet.data) writeFileSync(join(dir, `${refName(p)}.frames.jpg`), Buffer.from(await sheet.data.arrayBuffer()));
+    }
   }
 }

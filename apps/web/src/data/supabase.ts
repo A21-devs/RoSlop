@@ -236,9 +236,14 @@ export function cloudDb(url: string, anonKey: string): Db {
       check(error);
     },
 
-    async upload(file, folder) {
-      const path = `${current!.id}/${folder}/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
-      const { error } = await sb.storage.from("files").upload(path, file);
+    async upload(file, folder, at) {
+      const name = file instanceof File ? file.name : "file";
+      const path = at ?? `${current!.id}/${folder}/${Date.now()}-${name.replace(/[^\w.-]/g, "_")}`;
+      const { error } = await sb.storage.from("files").upload(path, file, { upsert: !!at });
+      // Supabase's free plan takes files up to 50 MB.
+      if (error && /exceeded|too large|maximum allowed size|413/i.test(error.message)) {
+        throw new Error(`${name} is ${Math.round(file.size / 1e6)} MB, more than your Supabase storage takes (50 MB on the free plan). Trim or compress it, or raise the limit in Supabase, Storage settings.`);
+      }
       check(error);
       return path;
     },

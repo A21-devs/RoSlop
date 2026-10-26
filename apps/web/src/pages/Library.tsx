@@ -5,6 +5,7 @@ import { messageAgent, remove, uploadAsset } from "../data/actions";
 import { db, toast, useData, useGameFilter, useSnap } from "../data/store";
 import { Del, Empty, Icon, Seg } from "../ui/bits";
 import { openViewer } from "../ui/Viewer";
+import { isVideo } from "../ui/frames";
 import { askText } from "../ui/Ask";
 import { AssetPreview } from "../ui/Preview";
 import { VirtualGrid } from "../ui/VirtualGrid";
@@ -200,7 +201,7 @@ export function Library() {
     setBusy(n => n + list.length);
     for (const f of list) {
       try {
-        await uploadAsset(f, tab === "references" ? "reference" : kind !== "all" ? kind : assetKind(f.name, f.type), game === "all" ? null : game, withGroup([], path));
+        await uploadAsset(f, tab === "references" || (kind === "all" && isVideo(f.name, f.type)) ? "reference" : kind !== "all" ? kind : assetKind(f.name, f.type), game === "all" ? null : game, withGroup([], path));
       } finally {
         setBusy(n => n - 1);
       }
@@ -252,7 +253,7 @@ export function Library() {
       )}
       <div className="card flat pad row" style={{ borderStyle: "dashed", marginBottom: 16, gap: 14 }}>
         <Icon name="upload" size={20} style={{ color: "var(--accent-text)" }} />
-        <div className="grow"><b>Drop files anywhere on this page.</b> <span className="muted">Double-click anything to look closer.</span>{tab === "assets" && kind !== "all" && <> They go in <b>{kind === "ui" ? "UI" : kind === "vfx" ? "VFX" : `${kind}s`}</b>.</>} <span className="muted">Images, .fbx, .obj, .rbxm, sounds. Librarian puts them on Roblox and adds the asset id, then the crew can use them.</span></div>
+        <div className="grow"><b>Drop files anywhere on this page.</b> <span className="muted">Double-click anything to look closer.</span>{tab === "assets" && kind !== "all" && <> They go in <b>{kind === "ui" ? "UI" : kind === "vfx" ? "VFX" : `${kind}s`}</b>.</>} <span className="muted">{tab === "references" ? "Images and videos. Videos get a sheet of frames so the agents can see what's in them." : "Images, .fbx, .obj, .rbxm, sounds. Librarian puts them on Roblox and adds the asset id, then the crew can use them. Videos go in References."}</span></div>
         {busy > 0 && <span className="row muted small"><span className="dot pulse" />{busy} uploading</span>}
       </div>
       {window.roslop && tab === "assets" && (
@@ -296,10 +297,11 @@ export function Library() {
               draggable
               onDragStart={e => e.dataTransfer.setData("text/roslop-assets", JSON.stringify(dragIds(a.id)))}
               onDoubleClick={() => {
-                // Pictures and rendered previews; models and sounds play on their card instead.
-                const pic = (x: typeof a) => previewOf(x.tags) || (/\.(png|jpe?g|webp|gif|bmp)(\?|$)|^data:image|^https?:\/\/tr\.rbxcdn/i.test(x.file_url ?? "") ? x.file_url : "");
+                // Pictures, videos and rendered previews; models and sounds play on their card instead.
+                const vid = (x: typeof a) => !previewOf(x.tags) && /\.(mp4|webm|mov|m4v)$|^data:video/i.test(x.file_url ?? "");
+                const pic = (x: typeof a) => previewOf(x.tags) || (/\.(png|jpe?g|webp|gif|bmp)(\?|$)|^data:image|^https?:\/\/tr\.rbxcdn/i.test(x.file_url ?? "") || vid(x) ? x.file_url : "");
                 const list = shown.filter(x => pic(x));
-                if (pic(a)) openViewer(list.map(x => ({ src: pic(x)!, title: x.name })), list.indexOf(a));
+                if (pic(a)) openViewer(list.map(x => ({ src: pic(x)!, title: x.name, kind: vid(x) ? "video" as const : "image" as const })), list.indexOf(a));
               }}
             >
               <span className="check"><Icon name="check" size={11} /></span>

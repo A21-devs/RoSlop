@@ -33,7 +33,7 @@ export interface Db {
   // A game's readings between two times, beyond the two weeks loaded up front.
   statsFor(gameId: string, from: string, to: string): Promise<GameStat[]>;
   saveSettings(patch: Partial<Settings>): Promise<void>;
-  upload(file: File, folder: string): Promise<string>;
+  upload(file: File | Blob, folder: string, at?: string): Promise<string>;
   fileUrl(path: string): Promise<string>;
   session(): Promise<{ url: string; anonKey: string; accessToken: string; refreshToken: string } | null>;
 }
