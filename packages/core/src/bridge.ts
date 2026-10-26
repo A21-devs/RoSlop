@@ -52,6 +52,10 @@ export interface DesktopBridge {
   // Adds a connector's MCP server to Claude Code and switches it on.
   connect(id: string): Promise<{ ok: boolean; detail: string }>;
   recheckConnectors(): Promise<void>;
+  // Pictures in the vault, a small preview of one, and its bytes for sending to the Library.
+  vaultImages(root: string): Promise<{ path: string; area: string; name: string; size: number; modified: string }[]>;
+  vaultThumb(root: string, file: string): Promise<string | null>;
+  vaultFile(root: string, file: string): Promise<Uint8Array | null>;
 }
 
 declare global {

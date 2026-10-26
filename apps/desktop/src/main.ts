@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { scanApps } from "./apps";
+import { vaultFile, vaultImages, vaultThumb } from "./vaultfiles";
 import { gameInfo, openStudio } from "./studio";
 import { getKey, setKey } from "./keys";
 import { Runner } from "./runner";
@@ -75,6 +76,9 @@ function handlers() {
   ipcMain.handle("roslop:getKey", (_, id: string) => getKey(id));
   ipcMain.handle("roslop:setKey", (_, id: string, value: string | null) => setKey(id, value));
   ipcMain.handle("roslop:scanApps", () => scanApps());
+  ipcMain.handle("roslop:vaultImages", (_, root: string) => vaultImages(root));
+  ipcMain.handle("roslop:vaultThumb", (_, root: string, file: string) => vaultThumb(root, file));
+  ipcMain.handle("roslop:vaultFile", (_, root: string, file: string) => vaultFile(root, file));
   ipcMain.handle("roslop:connect", (_, id: string) => runner.connect(id));
   ipcMain.handle("roslop:recheckConnectors", () => runner.recheckConnectors());
   ipcMain.handle("roslop:openStudio", (_, g) => openStudio(g));

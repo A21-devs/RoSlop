@@ -34,7 +34,7 @@ It's a desktop app for Windows and Mac, a website for everything else, and your 
 | **Pitches** | Game ideas from the charts, or acquisition pitches for a game you'd buy a stake in, priced from RoWatcher's revenue estimates. |
 | **Market** | What's climbing on Roblox right now, with filters, benchmarks and breakouts. |
 | **Library** | Your models, icons, sounds, VFX, animations, UI and references, in nested groups. Models and animations render live with their textures, sounds show waveforms, videos play, and `.rbxm` files say what's inside. Uploads go to Roblox through Open Cloud by themselves. |
-| **Vault** | Your Obsidian notes. Agents read the ones that match their task. Paste links or drop pictures to add references straight into it. |
+| **Vault** | Your Obsidian notes. Agents read the ones that match their task. Paste links or drop pictures to add references straight into it, or pick pictures already in it and send them to the Library's References. |
 | **Settings** | Usage limits, named Studios, style targets, computers and apps like Blender, connectors like Figma, and keys. |
 
 <p>
@@ -171,6 +171,7 @@ The crew builds to a high bar by default, but nothing beats showing it exactly w
 
 - **Style targets** (**Settings → Style targets**). Paste gameplay videos from YouTube, X, TikTok or Medal, or type a game's name, and save them for each kind of game (RPG, Simulator, Tycoon…). Your computer downloads each video once and pulls frames, and every build, model and art task studies them first. Use gameplay, not trailers made of drawings. Game icons don't help.
 - **References in the Vault.** On **Vault → Add to references**, pick an area (Building, Modeling, VFX, UI…) and a topic, then paste links (pictures, X posts, YouTube clips, DevForum or ArtStation pages) or drop pictures. They go straight into `References/<area>` with no AI usage, and the crew treats them as the look to match.
+- **Vault pictures to the Library.** On **Vault → Pictures in your vault**, pick pictures (shift-click for a run) and send them to the Library's References in a group.
 - **Your Library comes first.** Every task gets your Library ranked for it, with Roblox ids and download links, plus your closest references and vault notes. Agents have to use your stuff before making anything new, and list what they used when they finish.
 - **The Art Director** compares finished builds, models and art to your references and sends weak work back with specific notes, up to three rounds.
 - **The guides** the crew follows are in your vault under `References/Building` and `References/Modeling`. They cover showcase builds, stylized RPG worlds, simulator and tycoon builds, pets, eggs, weapons and bosses, and hand-painted texturing. Edit them, and the crew follows your version.

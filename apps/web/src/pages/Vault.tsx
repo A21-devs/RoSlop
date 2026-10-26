@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
-import { AGENTS } from "@roslop/core";
-import { buildVault, importRefs } from "../data/actions";
+import { useEffect, useRef, useState } from "react";
+import { AGENTS, withGroup } from "@roslop/core";
+import { buildVault, importRefs, uploadAsset } from "../data/actions";
 import { db, toast, useSnap } from "../data/store";
 import { Icon } from "../ui/bits";
 import { VaultAsk } from "../ui/VaultAsk";
@@ -32,6 +32,7 @@ export function Vault() {
       <div className="head">
         <div className="grow"><h1 className="page">Vault</h1><p className="lede">Your Obsidian vault is what the crew knows about making Roblox games. They read the notes meant for them before they start, and write down what they learn.</p></div>
       </div>
+      {path && window.roslop && <VaultPictures root={path} />}
       <div className="grid2">
         <div className="col" style={{ gap: 16 }}>
           <div className="card pad col">
@@ -112,6 +113,117 @@ function AddRefs() {
         {running > 0 && <span className="muted small"><span className="dot pulse" /> {running} importing</span>}
         <button className="btn pri sm" disabled={busy || (!links.length && !files.length)} onClick={go}>{busy ? "Sending…" : `Add${links.length + files.length ? ` ${links.length + files.length}` : ""}`}</button>
       </div>
+    </div>
+  );
+}
+
+type Pic = { path: string; area: string; name: string; size: number; modified: string };
+const thumbs = new Map<string, Promise<string | null>>();
+
+function Thumb({ root, file }: { root: string; file: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    let alive = true;
+    // Only make previews for pictures that scroll into view.
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return;
+      io.disconnect();
+      if (!thumbs.has(file)) thumbs.set(file, window.roslop!.vaultThumb(root, file));
+      void thumbs.get(file)!.then(v => alive && setSrc(v));
+    }, { rootMargin: "300px" });
+    io.observe(el);
+    return () => {
+      alive = false;
+      io.disconnect();
+    };
+  }, [file]);
+  return <div ref={box} className="media" style={{ aspectRatio: "1", background: "var(--raise)" }}>{src && <img src={src} alt="" style={{ objectFit: "cover" }} />}</div>;
+}
+
+// Pictures already in the vault: pick some and they go to the Library's References.
+function VaultPictures({ root }: { root: string }) {
+  const s = useSnap();
+  const [pics, setPics] = useState<Pic[] | null>(null);
+  const [area, setArea] = useState("All");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [anchor, setAnchor] = useState<string | null>(null);
+  const [group, setGroup] = useState("");
+  const [busy, setBusy] = useState<{ done: number; of: number } | null>(null);
+  const [show, setShow] = useState(60);
+  const load = () => window.roslop!.vaultImages(root).then(setPics, () => setPics([]));
+  useEffect(() => {
+    void load();
+  }, [root]);
+  if (!pics) return <div className="card pad muted" style={{ marginBottom: 16 }}>Looking for pictures in your vault…</div>;
+  if (!pics.length) return null;
+  const areas = ["All", ...new Set(pics.map(p => p.area))];
+  const list = area === "All" ? pics : pics.filter(p => p.area === area);
+  const inLibrary = new Set(s.assets.filter(a => a.kind === "reference").map(a => a.name));
+  const pick = (p: Pic, range: boolean) => {
+    setPicked(prev => {
+      const next = new Set(prev);
+      if (range && anchor) {
+        const a = list.findIndex(x => x.path === anchor), b = list.findIndex(x => x.path === p.path);
+        if (a >= 0 && b >= 0) for (const x of list.slice(Math.min(a, b), Math.max(a, b) + 1)) next.add(x.path);
+      } else if (next.has(p.path)) next.delete(p.path);
+      else next.add(p.path);
+      return next;
+    });
+    setAnchor(p.path);
+  };
+  const send = async () => {
+    const chosen = pics.filter(p => picked.has(p.path));
+    setBusy({ done: 0, of: chosen.length });
+    let ok = 0;
+    for (const p of chosen) {
+      try {
+        const bytes = await window.roslop!.vaultFile(root, p.path);
+        if (!bytes) continue;
+        const ext = p.path.slice(p.path.lastIndexOf(".") + 1).toLowerCase();
+        const file = new File([new Uint8Array(bytes)], `${p.name}.${ext}`, { type: `image/${ext === "jpg" ? "jpeg" : ext}` });
+        await uploadAsset(file, "reference", null, withGroup([], group.trim() || `Vault/${p.area}`));
+        ok++;
+      } catch (e) {
+        toast(e instanceof Error ? e.message : String(e), true);
+      }
+      setBusy(b => (b ? { ...b, done: b.done + 1 } : b));
+    }
+    setBusy(null);
+    setPicked(new Set());
+    toast(`Added ${ok} to Library references${group.trim() ? ` in ${group.trim()}` : ""}`);
+  };
+  return (
+    <div className="card pad col" style={{ marginBottom: 16, gap: 12 }}>
+      <div className="row wrap" style={{ gap: 10 }}>
+        <div className="grow"><b style={{ fontSize: 14 }}>Pictures in your vault</b><div className="muted small">Pick any and send them to the Library's References, so every agent sees them with its tasks. Shift-click picks a run.</div></div>
+        <button className="btn sm ghost" onClick={() => void load()}>Refresh</button>
+      </div>
+      <div className="row wrap" style={{ gap: 8 }}>
+        <div className="seg">{areas.map(a => <button key={a} className={area === a ? "on" : ""} onClick={() => { setArea(a); setShow(60); }}>{a} <span className="mono dim">{a === "All" ? pics.length : pics.filter(p => p.area === a).length}</span></button>)}</div>
+        <span className="grow" />
+        {picked.size > 0 && (
+          <>
+            <button className="btn sm ghost" onClick={() => setPicked(new Set())}>Clear</button>
+            <input className="input" style={{ width: 200, minHeight: 28 }} placeholder="Library group (Vault/<area>)" value={group} onChange={e => setGroup(e.target.value)} />
+            <button className="btn pri sm" disabled={!!busy} onClick={send}>{busy ? `Sending ${busy.done} of ${busy.of}…` : `Send ${picked.size} to References`}</button>
+          </>
+        )}
+        {!picked.size && <button className="btn sm" onClick={() => setPicked(new Set(list.filter(p => !inLibrary.has(p.name)).map(p => p.path)))}>Pick all new</button>}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10 }}>
+        {list.slice(0, show).map(p => (
+          <div key={p.path} className={`card flat ${picked.has(p.path) ? "picked" : ""}`} style={{ padding: 6, cursor: "pointer", borderColor: picked.has(p.path) ? "var(--accent)" : undefined, position: "relative" }} onClick={e => pick(p, e.shiftKey)} title={p.path}>
+            <Thumb root={root} file={p.path} />
+            <div className="small trunc" style={{ marginTop: 4 }}>{p.name}</div>
+            <div className="dim" style={{ fontSize: 10.5 }}>{p.area}{inLibrary.has(p.name) ? " · in Library" : ""}</div>
+            {picked.has(p.path) && <span className="pill ok" style={{ position: "absolute", top: 10, left: 10, height: 18 }}><Icon name="check" size={10} /></span>}
+          </div>
+        ))}
+      </div>
+      {list.length > show && <button className="btn sm" style={{ alignSelf: "center" }} onClick={() => setShow(n => n + 120)}>Show more ({list.length - show} left)</button>}
     </div>
   );
 }

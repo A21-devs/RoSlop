@@ -111,6 +111,14 @@ function near<T extends { created_at: string }>(rows: T[], t: number): T | undef
   return best && Math.abs(Date.parse(best.created_at) - t) < 3 * 3600_000 ? best : undefined;
 }
 
+// Against the same length of time just before the range.
+function Change({ now, then }: { now: number | undefined; then: number | undefined }) {
+  if (now === undefined || then === undefined) return <span className="dim small">nothing to compare yet</span>;
+  const d = now - then;
+  const pct = then ? Math.round((d / then) * 100) : null;
+  return <span className="small" style={{ color: d > 0 ? "var(--ok)" : d < 0 ? "var(--bad)" : "var(--dim)" }}>{d > 0 ? "+" : ""}{pct !== null ? `${pct}%` : d.toLocaleString()} vs the period before</span>;
+}
+
 function Delta({ now, then, suffix = "" }: { now: number | undefined; then: number | undefined; suffix?: string }) {
   if (now === undefined || then === undefined) return <span className="dim small">no reading a day ago</span>;
   const d = now - then;
@@ -149,12 +157,43 @@ export function Games() {
     };
   }, [g?.id, span.from.slice(0, 13), span.to.slice(0, 13), stats.length]);
 
-  // One reading per day for the longer charts.
+  // The same length of time just before, so every number in the range has something to compare to.
+  const [before, setBefore] = useState<typeof stats>([]);
+  const length = Date.parse(span.to) - Date.parse(span.from);
+  useEffect(() => {
+    if (!g) return;
+    let alive = true;
+    const from = new Date(Date.parse(span.from) - length).toISOString();
+    db.statsFor(g.id, from, span.from).then(r => alive && setBefore(r), () => alive && setBefore([]));
+    return () => {
+      alive = false;
+    };
+  }, [g?.id, span.from.slice(0, 13), span.to.slice(0, 13)]);
+
+  // One reading per day for the longer charts, by your own calendar day.
   const daily = useMemo(() => {
     const by = new Map<string, (typeof stats)[number]>();
-    for (const x of ranged) by.set(x.created_at.slice(0, 10), x);
+    for (const x of ranged) by.set(new Date(x.created_at).toLocaleDateString("en-CA"), x);
     return [...by.values()];
   }, [ranged]);
+  // Readings only exist from when the desktop app started recording this game.
+  const startsLate = ranged.length > 0 && Date.parse(ranged[0].created_at) - Date.parse(span.from) > 6 * 3600_000;
+  const sum = (rows: typeof stats) => {
+    if (rows.length < 2) return null;
+    const first = rows[0], end = rows.at(-1)!;
+    const peakRow = rows.reduce((a, r) => (r.playing > a.playing ? r : a), first);
+    return {
+      avg: Math.round(rows.reduce((a, r) => a + r.playing, 0) / rows.length),
+      peak: peakRow.playing,
+      peakAt: peakRow.created_at,
+      visits: Math.max(0, end.visits - first.visits),
+      favorites: end.favorites - first.favorites,
+      likes: likesOf(end) - likesOf(first),
+      hours: (Date.parse(end.created_at) - Date.parse(first.created_at)) / 3600_000,
+    };
+  };
+  const nowSum = useMemo(() => sum(ranged), [ranged]);
+  const prevSum = useMemo(() => sum(before), [before]);
   const recent = useMemo(() => thin(ranged, 400), [ranged]);
   const short = Date.parse(span.to) - Date.parse(span.from) <= 2.1 * 864e5;
   const tick = (iso: string) => (short ? new Date(iso).toLocaleTimeString(undefined, { hour: "numeric" }) : day(iso));
@@ -208,7 +247,7 @@ export function Games() {
           </div>
           <div className="kpis" style={{ marginBottom: 18 }}>
             {[
-              ["Playing now", last?.playing.toLocaleString() ?? "–"], ["Peak today", peak ? peak.toLocaleString() : "–"], ["Visits today", visitsToday?.toLocaleString() ?? "–"],
+              ["Playing now", last?.playing.toLocaleString() ?? "–"], ["Peak, last 24 hours", peak ? peak.toLocaleString() : "–"], ["Visits, last 24 hours", visitsToday?.toLocaleString() ?? "–"],
               ["Total visits", last ? last.visits.toLocaleString() : "–"], ["Likes", likes !== null ? `${likes}%` : "–"], ["Favorites", last?.favorites.toLocaleString() ?? "–"],
               ["Servers", info ? `${info.servers.count}${info.servers.count >= 100 ? "+" : ""}` : "–"], ["Passes", info ? info.passes.length : "–"],
             ].map(([l, v]) => (
@@ -244,6 +283,7 @@ export function Games() {
           {tab === "charts" && (
             <>
               {ranged.length < 2 && <div className="card pad muted" style={{ marginBottom: 14 }}>{stats.length < 2 ? empty : "No readings in this range."}</div>}
+              {startsLate && <div className="card pad muted small" style={{ marginBottom: 14 }}>Readings for {g.name} start {when(ranged[0].created_at)}, when the desktop app began recording it, so this range only covers from then.</div>}
               <div className="grid2" style={{ marginBottom: 14, gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
                 <Panel title="Players online" sub={`${rangeLabel}. Dashed lines are updates the crew finished.`}>
                   <Chart lines={[{ name: "Playing", data: recent.map(x => x.playing), color: "var(--accent-text)", area: true }]} labels={recent.map(x => tick(x.created_at))} fmtX={i => when(recent[i].created_at)} marks={marksFor(recent)} />
@@ -293,11 +333,15 @@ export function Games() {
 
           {tab === "liveops" && (
             <>
+            {startsLate && <div className="card pad muted small" style={{ marginBottom: 14 }}>Readings for {g.name} start {when(ranged[0].created_at)}, when the desktop app began recording it, so this range only covers from then.</div>}
+            {ranged.length < 2 && <div className="card pad muted" style={{ marginBottom: 14 }}>{stats.length < 2 ? empty : "No readings in this range."}</div>}
             <div className="kpis" style={{ marginBottom: 14 }}>
               <div className="card kpi"><div className="muted small">Playing now</div><div className="v">{last?.playing.toLocaleString() ?? "–"}</div><Delta now={last?.playing} then={dayAgo?.playing} /></div>
-              <div className="card kpi"><div className="muted small">Visits, last 24 hours</div><div className="v">{last && dayAgo ? (last.visits - dayAgo.visits).toLocaleString() : "–"}</div>{last && weekAgo && dayAgo ? <span className="dim small">{Math.round((last.visits - weekAgo.visits) / 7).toLocaleString()} a day over the week</span> : null}</div>
-              <div className="card kpi"><div className="muted small">New favorites, 24 hours</div><div className="v">{last && dayAgo ? (last.favorites - dayAgo.favorites).toLocaleString() : "–"}</div></div>
-              <div className="card kpi"><div className="muted small">Likes</div><div className="v">{likes !== null ? `${likes}%` : "–"}</div><Delta now={last ? likesOf(last) : undefined} then={dayAgo ? likesOf(dayAgo) : undefined} suffix=" pts" /></div>
+              <div className="card kpi"><div className="muted small">Peak, {rangeLabel}</div><div className="v">{nowSum ? nowSum.peak.toLocaleString() : "–"}</div>{nowSum && <span className="dim small">{when(nowSum.peakAt)}</span>}</div>
+              <div className="card kpi"><div className="muted small">Average playing</div><div className="v">{nowSum ? nowSum.avg.toLocaleString() : "–"}</div><Change now={nowSum?.avg} then={prevSum?.avg} /></div>
+              <div className="card kpi"><div className="muted small">Visits, {rangeLabel}</div><div className="v">{nowSum ? nowSum.visits.toLocaleString() : "–"}</div><Change now={nowSum?.visits} then={prevSum ? Math.round(prevSum.visits * (nowSum && prevSum.hours ? nowSum.hours / prevSum.hours : 1)) : undefined} /></div>
+              <div className="card kpi"><div className="muted small">New favorites</div><div className="v">{nowSum ? nowSum.favorites.toLocaleString() : "–"}</div><Change now={nowSum?.favorites} then={prevSum ? Math.round(prevSum.favorites * (nowSum && prevSum.hours ? nowSum.hours / prevSum.hours : 1)) : undefined} /></div>
+              <div className="card kpi"><div className="muted small">Likes</div><div className="v">{likes !== null ? `${likes}%` : "–"}</div>{nowSum && <span className="small" style={{ color: nowSum.likes > 0 ? "var(--ok)" : nowSum.likes < 0 ? "var(--bad)" : "var(--dim)" }}>{nowSum.likes > 0 ? "+" : ""}{nowSum.likes.toFixed(1)} pts over the range</span>}</div>
               <div className="card kpi"><div className="muted small">Best hour</div><div className="v">{Math.max(...hours) ? hourName(hours.indexOf(Math.max(...hours))) : "–"}</div><span className="dim small">most players on average</span></div>
             </div>
             <div className="grid2" style={{ marginBottom: 14, gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
