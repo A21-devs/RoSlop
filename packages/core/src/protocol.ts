@@ -1,5 +1,5 @@
 import { AGENT } from "./agents";
-import type { AgentId, MarketItem, Priority } from "./types";
+import type { AgentId, MarketItem, Pitch, PitchStat, Priority, Row } from "./types";
 
 // Agents talk back to the app with plain lines in their output:
 //   ASK: Which layout? | A | B
@@ -107,3 +107,37 @@ export function carriedLines(brief: string): string {
   }
   return keep.join("\n\n");
 }
+
+// Pulse ends a pitch with a ```pitch block: one object or a list of them.
+export function readPitches(text: string): Omit<Pitch, keyof Row | "status" | "source">[] {
+  const out: Omit<Pitch, keyof Row | "status" | "source">[] = [];
+  for (const m of text.matchAll(/```pitch\s*([\s\S]*?)```/g)) {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(m[1]);
+    } catch {
+      continue;
+    }
+    for (const p of Array.isArray(raw) ? raw : [raw]) {
+      if (!p || typeof p !== "object" || typeof (p as Record<string, unknown>).title !== "string") continue;
+      const o = p as Record<string, unknown>;
+      const str = (v: unknown) => (typeof v === "string" ? v : "");
+      const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+      out.push({
+        title: str(o.title).slice(0, 120),
+        summary: str(o.summary),
+        why: str(o.why),
+        stats: Array.isArray(o.stats) ? o.stats.filter((x): x is PitchStat => !!x && typeof x === "object" && typeof (x as PitchStat).label === "string").map(x => ({ label: String(x.label), value: String(x.value ?? ""), sub: x.sub ? String(x.sub) : undefined })) : [],
+        beats: Array.isArray(o.beats) ? o.beats.filter((x): x is { at: string; text: string } => !!x && typeof x === "object").map(x => ({ at: String(x.at ?? ""), text: String(x.text ?? "") })) : [],
+        money: str(o.money),
+        clip: str(o.clip),
+        reuses: list(o.reuses),
+        risks: list(o.risks),
+        score: Math.max(0, Math.min(10, Math.round(Number(o.score) || 0))),
+      });
+    }
+  }
+  return out;
+}
+
+export const stripPitches = (text: string) => text.replace(/```pitch[\s\S]*?```/g, "").trim();

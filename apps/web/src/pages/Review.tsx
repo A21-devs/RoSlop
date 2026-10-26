@@ -46,7 +46,7 @@ export function Review() {
   });
 
   return (
-    <div className="content flush split" style={{ display: "grid", gridTemplateColumns: "280px 1fr 340px", height: "100%" }}>
+    <div className="content flush split" style={{ display: "grid", gridTemplateColumns: "280px minmax(0, 1fr) 340px", gridTemplateRows: "minmax(0, 1fr)", height: "100%" }}>
       <div className="hide-m" style={{ borderRight: "1px solid var(--line)", overflowY: "auto" }}>
         <div style={{ padding: "14px 14px 10px" }}>
           <Seg value={show} onChange={setShow} options={[["waiting", <>Waiting <span className="mono">{all.filter(x => x.verdict === "waiting").length}</span></>], ["approved", "Approved"], ["changes", "Sent back"]]} />
@@ -67,7 +67,7 @@ export function Review() {
 
       {p ? (
         <>
-          <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+          <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14, minWidth: 0, minHeight: 0, overflowY: "auto" }}>
             <div className="row">
               <span className="mono dim">{idx + 1} / {list.length}</span>
               <div className="grow" />
@@ -79,7 +79,7 @@ export function Review() {
             </div>
             <span className="muted small hide-m">A to approve, C to write a note, R to reject, arrows to move.</span>
           </div>
-          <div style={{ borderLeft: "1px solid var(--line)", padding: 20, display: "flex", flexDirection: "column", gap: 16, background: "var(--side)" }}>
+          <div style={{ borderLeft: "1px solid var(--line)", padding: 20, display: "flex", flexDirection: "column", gap: 16, background: "var(--side)", minHeight: 0, overflowY: "auto" }}>
             <div className="row"><Av who={p.agent} size="lg" /><div><div style={{ fontWeight: 600 }}>{agentName(p.agent)}</div><div className="muted small">{s.games.find(g => g.id === p.game_id)?.name ?? "No game"} · {ago(p.created_at)} ago</div></div></div>
             <div>
               <div style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.3, marginBottom: 8 }}>{p.title}</div>

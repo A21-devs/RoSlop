@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { allowance, canStart, concurrency, pace, projected, waitFor } from "./pacing";
-import { readPlan, readSignal } from "./protocol";
+import { readPitches, readPlan, readSignal } from "./protocol";
 
 describe("pacing", () => {
   it("lets the first job of a fresh window start", () => {
@@ -59,5 +59,16 @@ describe("protocol", () => {
     const plan = readPlan('ok\n```tasks\n[{"agent":"builder","title":"Fix lava","brief":"x"},{"agent":"nobody","title":"y"}]\n```');
     expect(plan).toHaveLength(1);
     expect(plan[0].priority).toBe("normal");
+  });
+});
+
+describe("pitches", () => {
+  it("reads one pitch or a list, and skips junk", () => {
+    const one = readPitches('ok\n```pitch\n{"title":"Dino Farm","why":"egg games are up","score":7.6,"stats":[{"label":"Similar","value":"14"}]}\n```');
+    expect(one).toHaveLength(1);
+    expect(one[0].score).toBe(8);
+    expect(one[0].stats[0].value).toBe("14");
+    expect(readPitches('```pitch\n[{"title":"A"},{"nope":1},{"title":"B"}]\n```').map(p => p.title)).toEqual(["A", "B"]);
+    expect(readPitches("```pitch\nnot json\n```")).toEqual([]);
   });
 });

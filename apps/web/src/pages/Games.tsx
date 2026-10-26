@@ -3,7 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ago, STAGES, type Game, type GameInfo, type Stage } from "@roslop/core";
 import { addGame, messageAgent, publish } from "../data/actions";
 import { db, toast, useSnap } from "../data/store";
-import { Av, Empty, Icon, LineChart } from "../ui/bits";
+import { Av, Empty, Icon } from "../ui/bits";
+import { Chart } from "../ui/Chart";
 import { playGame } from "../ui/Board";
 
 function AddGame({ done }: { done(id?: string): void }) {
@@ -72,14 +73,31 @@ function useGameInfo(g: Game | undefined) {
 
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
-function Chart({ title, sub, data, labels, color = "var(--accent-text)", empty }: { title: string; sub: string; data: number[]; labels: string[]; color?: string; empty: string }) {
+function Panel({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) {
   return (
     <div className="card pad">
       <div className="sec-h" style={{ marginBottom: 2 }}><h3>{title}</h3></div>
       <div className="muted small" style={{ marginBottom: 10 }}>{sub}</div>
-      {data.length > 1 ? <LineChart series={[{ data, color, area: true }]} labels={labels} /> : <div className="muted small">{empty}</div>}
+      {children}
     </div>
   );
+}
+
+const when = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const hourName = (h: number) => new Date(2000, 0, 1, h).toLocaleTimeString(undefined, { hour: "numeric" });
+
+// The reading closest to a moment, for "compared with yesterday" numbers.
+function near<T extends { created_at: string }>(rows: T[], t: number): T | undefined {
+  let best: T | undefined;
+  for (const r of rows) if (!best || Math.abs(Date.parse(r.created_at) - t) < Math.abs(Date.parse(best.created_at) - t)) best = r;
+  return best && Math.abs(Date.parse(best.created_at) - t) < 3 * 3600_000 ? best : undefined;
+}
+
+function Delta({ now, then, suffix = "" }: { now: number | undefined; then: number | undefined; suffix?: string }) {
+  if (now === undefined || then === undefined) return <span className="dim small">no reading a day ago</span>;
+  const d = now - then;
+  const pct = then ? Math.round((d / then) * 100) : null;
+  return <span className="small" style={{ color: d > 0 ? "var(--ok)" : d < 0 ? "var(--bad)" : "var(--dim)" }}>{d > 0 ? "+" : ""}{d.toLocaleString(undefined, { maximumFractionDigits: 1 })}{suffix}{pct !== null && suffix === "" ? ` (${pct > 0 ? "+" : ""}${pct}%)` : ""} vs a day ago</span>;
 }
 
 export function Games() {
@@ -107,6 +125,27 @@ export function Games() {
   const empty = g?.universe_id ? "Waiting for more readings. The desktop app records them every few minutes." : "Add the universe id in Details to see live numbers.";
 
   const tasks = g ? s.tasks.filter(t => t.game_id === g.id) : [];
+  // Finished work as markers on the timeline, so a change in players lines up with what shipped.
+  const marksFor = (rows: { created_at: string }[]) => {
+    if (rows.length < 2) return [];
+    const from = Date.parse(rows[0].created_at), to = Date.parse(rows.at(-1)!.created_at);
+    return tasks.filter(t => t.status === "done" && t.finished_at && Date.parse(t.finished_at) >= from && Date.parse(t.finished_at) <= to).map(t => {
+      const at = Date.parse(t.finished_at!);
+      let i = 0;
+      rows.forEach((r, k) => { if (Math.abs(Date.parse(r.created_at) - at) < Math.abs(Date.parse(rows[i].created_at) - at)) i = k; });
+      return { at: i, label: `${t.title} (done ${when(t.finished_at!)})` };
+    });
+  };
+  const hours = Array.from({ length: 24 }, (_, h) => {
+    const at = stats.filter(x => new Date(x.created_at).getHours() === h);
+    return at.length ? Math.round(at.reduce((a, x) => a + x.playing, 0) / at.length) : 0;
+  });
+  const dayAgo = near(stats, Date.now() - 864e5);
+  const weekAgo = near(stats, Date.now() - 7 * 864e5);
+  const timeline = [
+    ...tasks.filter(t => t.status === "done" && t.finished_at).map(t => ({ at: t.finished_at!, who: t.agent, text: t.title, sub: t.result, link: `/tasks?open=${t.id}` })),
+    ...(g ? s.proofs.filter(p => p.game_id === g.id && p.decided_at) : []).map(p => ({ at: p.decided_at!, who: p.agent, text: `${p.verdict === "approved" ? "You approved" : p.verdict === "changes" ? "You sent back" : "You rejected"}: ${p.title}`, sub: p.feedback, link: `/review/${p.id}` })),
+  ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 25);
   const ask = (agent: Parameters<typeof messageAgent>[1], title: string, brief: string) => messageAgent(s, agent, title, brief, g!.id).then(() => toast(`Sent to ${agent}`));
   const dash = g?.universe_id ? `https://create.roblox.com/dashboard/creations/experiences/${g.universe_id}` : null;
 
@@ -151,11 +190,20 @@ export function Games() {
 
           {tab === "charts" && (
             <>
+              {stats.length < 2 && <div className="card pad muted" style={{ marginBottom: 14 }}>{empty}</div>}
               <div className="grid2" style={{ marginBottom: 14, gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
-                <Chart title="Players online" sub="every few minutes, last 3 days" data={recent.map(x => x.playing)} labels={recent.length > 1 ? [day(recent[0].created_at), day(recent.at(-1)!.created_at)] : []} empty={empty} />
-                <Chart title="Visits per day" sub="new visits each day" data={daily.slice(1).map((x, i) => Math.max(0, x.visits - daily[i].visits))} labels={daily.length > 2 ? [day(daily[1].created_at), day(daily.at(-1)!.created_at)] : []} color="var(--ok)" empty={empty} />
-                <Chart title="Favorites" sub="total, by day" data={daily.map(x => x.favorites)} labels={daily.length > 1 ? [day(daily[0].created_at), day(daily.at(-1)!.created_at)] : []} color="#c45cff" empty={empty} />
-                <Chart title="Likes" sub="share of thumbs up, by day" data={daily.map(likesOf)} labels={daily.length > 1 ? [day(daily[0].created_at), day(daily.at(-1)!.created_at)] : []} color="var(--warn)" empty={empty} />
+                <Panel title="Players online" sub="every few minutes, last 3 days. Dashed lines are updates the crew finished.">
+                  <Chart lines={[{ name: "Playing", data: recent.map(x => x.playing), color: "var(--accent-text)", area: true }]} labels={recent.map(x => day(x.created_at))} fmtX={i => when(recent[i].created_at)} marks={marksFor(recent)} />
+                </Panel>
+                <Panel title="Visits per day" sub="new visits each day">
+                  <Chart bars lines={[{ name: "Visits", data: daily.slice(1).map((x, i) => Math.max(0, x.visits - daily[i].visits)), color: "var(--ok)" }]} labels={daily.slice(1).map(x => day(x.created_at))} />
+                </Panel>
+                <Panel title="Favorites" sub="total, by day">
+                  <Chart lines={[{ name: "Favorites", data: daily.map(x => x.favorites), color: "#c45cff", area: true }]} labels={daily.map(x => day(x.created_at))} />
+                </Panel>
+                <Panel title="Likes" sub="share of thumbs up, by day">
+                  <Chart lines={[{ name: "Likes", data: daily.map(likesOf), color: "var(--warn)", area: true }]} labels={daily.map(x => day(x.created_at))} unit="%" />
+                </Panel>
               </div>
               <div className="card flat pad muted small" style={{ background: "var(--raise)" }}>
                 Daily users, retention, the first minute, session time and Robux spent live in your Creator Dashboard. Roblox doesn't let other apps read those yet.{dash && <> <a className="acc" href={`${dash}/analytics/overview`} target="_blank" rel="noreferrer">Open them there</a>.</>}
@@ -191,6 +239,33 @@ export function Games() {
           )}
 
           {tab === "liveops" && (
+            <>
+            <div className="kpis" style={{ marginBottom: 14 }}>
+              <div className="card kpi"><div className="muted small">Playing now</div><div className="v">{last?.playing.toLocaleString() ?? "–"}</div><Delta now={last?.playing} then={dayAgo?.playing} /></div>
+              <div className="card kpi"><div className="muted small">Visits, last 24 hours</div><div className="v">{last && dayAgo ? (last.visits - dayAgo.visits).toLocaleString() : "–"}</div>{last && weekAgo && dayAgo ? <span className="dim small">{Math.round((last.visits - weekAgo.visits) / 7).toLocaleString()} a day over the week</span> : null}</div>
+              <div className="card kpi"><div className="muted small">New favorites, 24 hours</div><div className="v">{last && dayAgo ? (last.favorites - dayAgo.favorites).toLocaleString() : "–"}</div></div>
+              <div className="card kpi"><div className="muted small">Likes</div><div className="v">{likes !== null ? `${likes}%` : "–"}</div><Delta now={last ? likesOf(last) : undefined} then={dayAgo ? likesOf(dayAgo) : undefined} suffix=" pts" /></div>
+              <div className="card kpi"><div className="muted small">Best hour</div><div className="v">{Math.max(...hours) ? hourName(hours.indexOf(Math.max(...hours))) : "–"}</div><span className="dim small">most players on average</span></div>
+            </div>
+            <div className="grid2" style={{ marginBottom: 14, gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
+              <Panel title="Players and updates" sub="hover to see the count and anything that shipped around then">
+                <Chart lines={[{ name: "Playing", data: recent.map(x => x.playing), color: "var(--accent-text)", area: true }]} labels={recent.map(x => day(x.created_at))} fmtX={i => when(recent[i].created_at)} marks={marksFor(recent)} />
+              </Panel>
+              <Panel title="When people play" sub="average players by hour of day, your time, last 2 weeks">
+                <Chart bars lines={[{ name: "Average playing", data: hours, color: "#7a5cff" }]} labels={hours.map((_, h) => (h % 3 === 0 ? hourName(h) : ""))} fmtX={h => hourName(h)} />
+              </Panel>
+            </div>
+            <div className="card list" style={{ marginBottom: 14 }}>
+              <div className="sec-h" style={{ padding: "12px 14px 0" }}><h3>What changed</h3><span className="r">finished work and your review calls, newest first</span></div>
+              {timeline.map((e, i) => (
+                <Link key={i} to={e.link} className="row" style={{ padding: "9px 14px", gap: 10, alignItems: "flex-start" }}>
+                  <span className="mono dim" style={{ width: 120, flex: "none" }}>{when(e.at)}</span>
+                  <Av who={e.who} size="sm" />
+                  <div className="grow" style={{ minWidth: 0 }}><div className="trunc" style={{ fontWeight: 500 }}>{e.text}</div>{e.sub && <div className="muted small" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{e.sub}</div>}</div>
+                </Link>
+              ))}
+              {!timeline.length && <div className="muted small" style={{ padding: 14 }}>Nothing finished or reviewed on this game yet.</div>}
+            </div>
             <div className="grid2">
               <div className="col" style={{ gap: 14 }}>
                 <div className="card pad col" style={{ gap: 8 }}>
@@ -231,6 +306,7 @@ export function Games() {
                 </div>
               </div>
             </div>
+            </>
           )}
 
           {tab === "details" && (

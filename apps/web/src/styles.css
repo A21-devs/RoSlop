@@ -198,6 +198,7 @@ h1.page { font-size: 26px; font-weight: 600; letter-spacing: -0.03em; line-heigh
   .content { padding: 16px 14px 96px; }
   .content.flush { overflow-y: auto; padding-bottom: 80px; }
   .grid2, .split { grid-template-columns: 1fr !important; }
+  .split { grid-template-rows: none !important; height: auto !important; }
   .split > aside { border-left: 0 !important; border-top: 1px solid var(--line); }
   .bubble { max-width: 88%; }
   .tabbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; justify-content: space-around; padding: 8px 6px calc(10px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--side) 94%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--line); }
@@ -252,3 +253,5 @@ h1.page { font-size: 26px; font-weight: 600; letter-spacing: -0.03em; line-heigh
 @media (max-width: 860px) { .viewer-hint { display: none; } }
 .media.zoomable { cursor: zoom-in; }
 .media.zoomable:hover img { filter: brightness(1.06); }
+
+.chart-tip { position: absolute; top: 6px; z-index: 3; min-width: 150px; padding: 8px 10px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: 0 6px 20px rgba(0, 0, 0, .35); font-size: 12px; pointer-events: none; }

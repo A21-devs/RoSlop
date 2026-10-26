@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assetKind, modelFor, readSignals, stripPlan, tokensToWindow, type Ask, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
+import { assetKind, modelFor, readSignals, stripPitches, stripPlan, tokensToWindow, type Ask, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
 import type { ChildProcess } from "node:child_process";
 import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +10,7 @@ import { claudeArgs, codexArgs, mcpConfig } from "./commands";
 import { onServers } from "./mcp";
 import { allRows, fail } from "./db";
 import type { Events } from "./events";
-import { saveMarket } from "./market";
+import { saveMarket, savePitches } from "./market";
 import { savePlan } from "./plan";
 import { keyEnvName, systemPrompt } from "./prompt";
 import { uploadProof } from "./proofs";
@@ -236,14 +236,18 @@ export class Job {
         if (this.stopped === "drop") sessions.set(task.id, undefined);
       } else if (code === 0 && !spawnError && !this.failedResult) {
         const text = this.finalText || this.allText;
-        const result = this.summary ?? stripPlan(text).replace(/```market[\s\S]*?```/, "").trim().slice(0, 2000);
+        const result = this.summary ?? stripPitches(stripPlan(text)).replace(/```market[\s\S]*?```/, "").trim().slice(0, 2000);
         await update({ status: "done", result, finished_at: now, used });
         sessions.set(task.id, undefined);
         if (task.agent === "lead") {
           const plan = text.includes("```tasks") ? text : this.allText;
           await savePlan(db, userId, task, plan, this.deps.history);
         }
-        if (task.agent === "pulse") await saveMarket(db, userId, text.includes("```market") ? text : this.allText);
+        if (task.agent === "pulse") {
+          await saveMarket(db, userId, text.includes("```market") ? text : this.allText);
+          const n = await savePitches(db, userId, text.includes("```pitch") ? text : this.allText);
+          if (n) events.add(task.id, "note", `${n} pitch${n > 1 ? "es" : ""} added to Pitches`);
+        }
       } else {
         await update({ status: "failed", finished_at: now, used });
         sessions.set(task.id, undefined);
