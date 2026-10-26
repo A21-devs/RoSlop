@@ -25,6 +25,7 @@ export const AGENTS: Agent[] = [
   { id: "merchant", name: "Merchant", short: "ME", color: "#e8c46a", tier: "standard", job: "Shops, passes and developer products.", studio: false },
   { id: "producer", name: "Producer", short: "PR", color: "#9fb3c8", tier: "light", job: "Keeps work moving and checks the proof.", studio: false },
   { id: "reviewer", name: "Reviewer", short: "RV", color: "#ff6262", tier: "heavy", job: "Checks money, saves and security before anything ships.", studio: false },
+  { id: "director", name: "Art Director", short: "AD", color: "#ff9fd0", tier: "heavy", job: "Checks builds, models and art against your references and sends weak work back.", studio: false },
   { id: "liveops", name: "Liveops", short: "LO", color: "#7ee0ff", tier: "light", job: "Reads player numbers and plans the next update.", studio: false },
 ];
 

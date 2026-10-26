@@ -14,6 +14,7 @@ import { decide } from "./schedule";
 import { recordStats } from "./stats";
 import { Usage } from "./usage";
 import { priceBrief } from "./rowatcher";
+import { afterJob } from "./director";
 import { gatherStuff } from "./stuff";
 import { briefVault, isVaultTask, seedVault } from "./vault";
 import { fetchRefs } from "./refs";
@@ -503,6 +504,7 @@ export class Runner {
     this.changed();
 
     void job.done.then(() => {
+      if (!vaultJob) void afterJob(db, live.userId, task.id, cwd).catch(e => events.add(task.id, "error", `Couldn't hand this to the Art Director: ${(e as Error).message}`));
       if (vaultJob && vault) {
         try {
           tidyLinks(vault);

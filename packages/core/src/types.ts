@@ -1,6 +1,6 @@
 export type AgentId =
   | "lead" | "pulse" | "architect" | "builder" | "frame" | "scenic" | "librarian" | "balance"
-  | "kid" | "playtest" | "splash" | "merchant" | "producer" | "reviewer" | "liveops";
+  | "kid" | "playtest" | "splash" | "merchant" | "producer" | "reviewer" | "liveops" | "director";
 
 export type Tier = "heavy" | "standard" | "light";
 export type Provider = "claude" | "codex";

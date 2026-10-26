@@ -5,6 +5,7 @@ import texturing from "@roslop/core/agents/_texturing.md";
 import architect from "@roslop/core/agents/architect.md";
 import balance from "@roslop/core/agents/balance.md";
 import builder from "@roslop/core/agents/builder.md";
+import director from "@roslop/core/agents/director.md";
 import frame from "@roslop/core/agents/frame.md";
 import kid from "@roslop/core/agents/kid.md";
 import lead from "@roslop/core/agents/lead.md";
@@ -23,6 +24,6 @@ export const BUILDING = building;
 export const TEXTURING = texturing;
 
 export const PROMPTS: Record<AgentId, string> = {
-  architect, balance, builder, frame, kid, lead, librarian, liveops,
+  architect, balance, builder, director, frame, kid, lead, librarian, liveops,
   merchant, playtest, producer, pulse, reviewer, scenic, splash,
 };

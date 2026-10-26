@@ -24,6 +24,7 @@ const KINDS: Partial<Record<AgentId, string[]>> = {
   kid: ["reference"],
   architect: ["reference"],
   merchant: ["icon", "ui", "reference"],
+  director: ["reference", "model"],
 };
 
 // Vault folders each agent should look in, besides notes tagged for it.
@@ -38,6 +39,7 @@ const FOLDERS: Partial<Record<AgentId, string[]>> = {
   merchant: ["Design", "Game Types", "References/UI"],
   playtest: ["Design", "Lessons"],
   kid: ["Design"],
+  director: ["References/Building", "References/Modeling", "References/UI", "Design", "Lessons"],
 };
 
 function score(a: Asset, want: string[], kinds: string[], gameId: string | null) {
