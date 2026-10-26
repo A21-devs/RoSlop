@@ -13,6 +13,7 @@ import { heartbeat, registerMachine, shouldWork, STUDIO_SLOTS } from "./machine"
 import { decide } from "./schedule";
 import { recordStats } from "./stats";
 import { Usage } from "./usage";
+import { priceBrief } from "./rowatcher";
 import { briefVault, isVaultTask, seedVault } from "./vault";
 import { fetchRefs } from "./refs";
 import { crewReport } from "./crew";
@@ -412,6 +413,13 @@ export class Runner {
       .select()
       .maybeSingle();
     if (!claimed) return;
+    if (task.agent === "pulse" && /^Acquisition pitch/.test(task.title)) {
+      const priced = await priceBrief(claimed.brief as string, getKey("rowatcher")).catch(() => null);
+      if (priced) {
+        claimed.brief = priced.brief;
+        events.add(task.id, "note", priced.note);
+      }
+    }
 
     if (answered) events.add(task.id, "note", `You answered: ${answered.answer}`);
 
