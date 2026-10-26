@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { defaultSettings, type Settings } from "@roslop/core";
+import { defaultSettings, withDefaults as fill, type Settings } from "@roslop/core";
 
 export interface Auth {
   url: string;
@@ -63,16 +63,7 @@ export async function loadSettings(db: SupabaseClient, userId: string): Promise<
 
 export function withDefaults(userId: string, row: Partial<Settings> | null): Settings {
   const base = defaultSettings(userId);
-  if (!row) return base;
-  return {
-    ...base,
-    ...row,
-    savings: { ...base.savings, ...row.savings },
-    apps: row.apps ?? [],
-    connectors: row.connectors ?? {},
-    blender: { ...base.blender, ...row.blender },
-    studio: { ...base.studio, ...row.studio, lanes: row.studio?.lanes?.length ? row.studio.lanes : base.studio.lanes },
-  };
+  return fill(base, row);
 }
 
 export function fail(what: string, error: { message: string } | null) {

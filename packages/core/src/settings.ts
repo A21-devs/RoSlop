@@ -87,3 +87,21 @@ export function defaultSettings(user_id: string): Settings {
     mcp_found: null,
   };
 }
+
+// Fills in what a saved row is missing: columns added after it was made come back empty or as
+// '{}', and those shouldn't wipe out the defaults.
+export function withDefaults(base: Settings, row: Partial<Settings> | null | undefined): Settings {
+  if (!row) return base;
+  const set = Object.fromEntries(Object.entries(row).filter(([, v]) => v !== null && v !== undefined)) as Partial<Settings>;
+  const studio = (set.studio ?? {}) as Partial<Settings["studio"]>;
+  return {
+    ...base,
+    ...set,
+    savings: { ...base.savings, ...set.savings },
+    blender: { ...base.blender, ...set.blender },
+    apps: Array.isArray(set.apps) ? set.apps : base.apps,
+    templates: Array.isArray(set.templates) ? set.templates : base.templates,
+    folders: Array.isArray(set.folders) ? set.folders : base.folders,
+    studio: { limit: studio.limit ?? null, lanes: Array.isArray(studio.lanes) && studio.lanes.length ? studio.lanes : base.studio.lanes },
+  };
+}

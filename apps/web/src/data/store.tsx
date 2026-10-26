@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { windowElapsed, windowExpired, type TableName } from "@roslop/core";
+import { windowElapsed, withDefaults, windowExpired, type TableName } from "@roslop/core";
 import type { Change, Db, Snapshot, User } from "./db";
 import { demoDb } from "./demo";
 import { cloudDb } from "./supabase";
@@ -69,8 +69,7 @@ const DataCtx = createContext<Ctx>({ user: undefined, snap: null, problem: null,
 
 function apply(s: Snapshot, c: Change): Snapshot {
   if (c.table === "settings") {
-    const row = c.row as Partial<Snapshot["settings"]>;
-    return { ...s, settings: { ...s.settings, ...row, blender: { ...s.settings.blender, ...row.blender }, savings: { ...s.settings.savings, ...row.savings } } };
+    return { ...s, settings: withDefaults(s.settings, c.row as Partial<Snapshot["settings"]>) };
   }
   const rows = s[c.table as TableName] as { id: string }[];
   if (c.gone) return { ...s, [c.table]: rows.filter(r => r.id !== c.row.id) };

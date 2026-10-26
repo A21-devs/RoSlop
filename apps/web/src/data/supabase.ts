@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { defaultSettings, type GameStat, type Settings, type TableName } from "@roslop/core";
+import { defaultSettings, withDefaults, type GameStat, type Settings, type TableName } from "@roslop/core";
 import { emptySnapshot, TABLES, type Change, type Db, type User } from "./db";
 
 const PAGE = 1000;
@@ -100,13 +100,7 @@ export function cloudDb(url: string, anonKey: string): Db {
       }
       const base = defaultSettings(uid);
       const extra = localExtras();
-      const merged = { ...base, ...settings, ...extra } as Settings;
-      const snap = emptySnapshot({
-        ...merged,
-        savings: { ...base.savings, ...merged.savings },
-        blender: { ...base.blender, ...merged.blender },
-        studio: { ...base.studio, ...merged.studio, lanes: merged.studio?.lanes?.length ? merged.studio.lanes : base.studio.lanes },
-      });
+      const snap = emptySnapshot(withDefaults(base, { ...settings, ...extra }));
       // Events and stats grow forever, so only pull recent ones up front.
       // Supabase hands back at most 1,000 rows a request, so page through until there's no more.
       const since = new Date(Date.now() - 14 * 864e5).toISOString();
