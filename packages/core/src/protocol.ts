@@ -12,13 +12,15 @@ export type Signal =
   | { kind: "ask"; question: string; options: string[] }
   | { kind: "proof"; path: string; title: string; note: string }
   | { kind: "done"; summary: string }
-  | { kind: "asset"; name: string; id: string };
+  | { kind: "asset"; name: string; id: string }
+  | { kind: "preview"; id: string; path: string };
 
 export function readSignal(line: string): Signal | null {
-  const m = line.trim().match(/^(ASK|PROOF|DONE|ASSET):\s*(.+)$/);
+  const m = line.trim().match(/^(ASK|PROOF|DONE|ASSET|PREVIEW):\s*(.+)$/);
   if (!m) return null;
   const parts = m[2].split("|").map(p => p.trim()).filter(Boolean);
   if (m[1] === "ASK") return { kind: "ask", question: parts[0], options: parts.slice(1) };
+  if (m[1] === "PREVIEW") return parts[0] && parts[1] ? { kind: "preview", id: parts[0], path: parts[1] } : null;
   if (m[1] === "ASSET") {
     const id = parts[1]?.match(/\d{5,}/)?.[0];
     return id ? { kind: "asset", name: parts[0], id } : null;
@@ -166,6 +168,9 @@ export function readPitches(text: string): Omit<Pitch, keyof Row | "status" | "s
 }
 
 export const stripPitches = (text: string) => text.replace(/```pitch[\s\S]*?```/g, "").trim();
+
+// A rendered preview image for a file that can't be drawn in the browser, as a "preview:" tag.
+export const previewOf = (tags: string[] | null | undefined) => (tags ?? []).find(t => t.startsWith("preview:"))?.slice(8) ?? "";
 
 // Which Library group an asset sits in, kept as a "group:" tag so no new column is needed.
 export const groupOf = (tags: string[] | null | undefined) => (tags ?? []).find(t => t.startsWith("group:"))?.slice(6) ?? "";

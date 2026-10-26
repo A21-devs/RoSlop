@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { assetKind, groupOf, withGroup, type AssetKind, type RunnerStatus } from "@roslop/core";
+import { assetKind, groupOf, previewOf, withGroup, type AssetKind, type RunnerStatus } from "@roslop/core";
 import { messageAgent, remove, uploadAsset } from "../data/actions";
 import { db, toast, useData, useGameFilter, useSnap } from "../data/store";
 import { Del, Empty, Icon, Seg } from "../ui/bits";
@@ -295,8 +295,10 @@ export function Library() {
               draggable
               onDragStart={e => e.dataTransfer.setData("text/roslop-assets", JSON.stringify(dragIds(a.id)))}
               onDoubleClick={() => {
-                const withFiles = shown.filter(x => x.file_url);
-                if (a.file_url) openViewer(withFiles.map(x => ({ src: x.file_url!, title: x.name })), withFiles.indexOf(a));
+                // Pictures and rendered previews; models and sounds play on their card instead.
+                const pic = (x: typeof a) => previewOf(x.tags) || (/\.(png|jpe?g|webp|gif|bmp)(\?|$)|^data:image|^https?:\/\/tr\.rbxcdn/i.test(x.file_url ?? "") ? x.file_url : "");
+                const list = shown.filter(x => pic(x));
+                if (pic(a)) openViewer(list.map(x => ({ src: pic(x)!, title: x.name })), list.indexOf(a));
               }}
             >
               <span className="check"><Icon name="check" size={11} /></span>

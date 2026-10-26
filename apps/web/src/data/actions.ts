@@ -75,6 +75,19 @@ export async function decidePitch(s: Snapshot, p: Pitch, status: Pitch["status"]
   if (status === "changes") await newTask(s, "pulse", `Rework pitch: ${p.title}`, `The owner wants changes to this pitch:\n${note}`, null);
 }
 
+// Files the browser can't draw (.rbxm animations and VFX, .blend) get rendered by an agent.
+export function makePreview(s: Snapshot, a: { id: string; name: string; kind: string; file_url: string | null }) {
+  const blend = /\.blend$/i.test(a.file_url ?? "");
+  const how = blend
+    ? "Open it in Blender in the background (blender -b) and render one clean three-quarter view with a plain dark background."
+    : a.kind === "animation"
+      ? "Open Roblox Studio minimized, insert it, load the animation onto an R15 dummy and play it. Capture the most telling pose, or 3 to 4 frames side by side in one image."
+      : a.kind === "vfx"
+        ? "Open Roblox Studio minimized, put the effect on a part in an empty dark place, turn every emitter, beam and trail on, let it run a second, and capture it."
+        : "Open Roblox Studio minimized, insert it in an empty place and capture a clean three-quarter view.";
+  return newTask(s, "librarian", `Preview: ${a.name}`, `Make a preview picture of the Library item "${a.name}" so it shows on its card. ${how} Keep everything in the background, don't bring windows to the front. Save it as .roslop/previews/${a.id}.png and print:\nPREVIEW: ${a.id} | .roslop/previews/${a.id}.png\n\nReference files: ${a.file_url}`, null, { needs_studio: !blend });
+}
+
 export type PitchMode = "build" | "stake" | "buyout" | "both";
 
 // Pitch off a game from the Market: build our own take, or buy into it.

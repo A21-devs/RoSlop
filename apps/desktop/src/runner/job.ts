@@ -13,7 +13,7 @@ import type { Events } from "./events";
 import { saveMarket, savePitches } from "./market";
 import { savePlan } from "./plan";
 import { keyEnvName, systemPrompt } from "./prompt";
-import { uploadProof } from "./proofs";
+import { uploadPreview, uploadProof } from "./proofs";
 import { sessions } from "./store";
 import { isVaultTask } from "./vault";
 import { claudeParser, codexParser, type Parser, type StreamEvent } from "./stream";
@@ -153,6 +153,10 @@ export class Job {
   private signals(text: string) {
     for (const s of readSignals(text)) {
       if (s.kind === "done") this.summary = s.summary;
+      if (s.kind === "preview") {
+        const { db, userId, events } = this.deps;
+        this.uploads.push(uploadPreview(db, userId, this.cwd, s.id, s.path).then(() => events.add(this.task.id, "note", "Preview saved to the Library"), e => events.add(this.task.id, "error", (e as Error).message)));
+      }
       if (s.kind === "asset" && !this.assets.has(s.id)) {
         this.assets.add(s.id);
         this.uploads.push(this.asset(s));

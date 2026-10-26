@@ -43,3 +43,17 @@ export async function uploadProof(
   });
   fail("Couldn't save the proof", rowError);
 }
+
+// An agent rendered a picture of a Library item in Studio. It becomes that card's preview.
+export async function uploadPreview(db: SupabaseClient, userId: string, cwd: string, assetId: string, rel: string) {
+  const file = resolve(cwd, rel);
+  if (!existsSync(file)) throw new Error(`Couldn't find the preview at ${rel}`);
+  const type = TYPES[extname(file).toLowerCase()] ?? "image/png";
+  const path = `${userId}/previews/${assetId}${extname(file).toLowerCase()}`;
+  const { error } = await db.storage.from("files").upload(path, readFileSync(file), { contentType: type, upsert: true });
+  fail("Couldn't upload the preview", error);
+  const { data } = await db.from("assets").select("tags").eq("id", assetId).maybeSingle();
+  const tags = ((data?.tags ?? []) as string[]).filter(t => !t.startsWith("preview:"));
+  const { error: e2 } = await db.from("assets").update({ tags: [...tags, `preview:${path}`] }).eq("id", assetId);
+  fail("Couldn't save the preview", e2);
+}

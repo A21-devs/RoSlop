@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { Asset } from "@roslop/core";
-import { db } from "../data/store";
+import { previewOf, type Asset } from "@roslop/core";
+import { makePreview } from "../data/actions";
+import { db, toast, useSnap } from "../data/store";
+import { describe, readRbx } from "./rbx";
 import { Icon, Media } from "./bits";
 import type { Ext } from "./three";
 
@@ -176,21 +178,67 @@ function VideoPreview({ src }: { src: string }) {
   );
 }
 
+function BlendPreview({ a, e }: { a: Asset; e: string }) {
+  const s = useSnap();
+  const asking = s.tasks.some(t => t.title === `Preview: ${a.name}` && ["queued", "working", "held"].includes(t.status));
+  return (
+    <div className="media preview" style={{ aspectRatio: "1", background: "var(--raise)" }}>
+      <div className="preview-note" style={{ alignContent: "center" }}>
+        <Icon name="library" size={22} style={{ color: "var(--accent-text)" }} />
+        <div>.{e} file</div>
+        <button className="btn sm" disabled={asking} onClick={ev => { ev.stopPropagation(); void makePreview(s, a).then(() => toast("Rendering it in Blender")); }} onDoubleClick={ev => ev.stopPropagation()}>{asking ? "Rendering…" : "Make preview"}</button>
+      </div>
+    </div>
+  );
+}
+
+function RbxPreview({ a, src }: { a: Asset; src: string }) {
+  const s = useSnap();
+  const [info, setInfo] = useState<ReturnType<typeof describe> & { error?: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    cached(`rbx:${src}`, async () => {
+      const url = await db.fileUrl(src);
+      const sum = readRbx(await (await fetch(url)).arrayBuffer());
+      return { image: JSON.stringify({ ...describe(sum), error: sum.error }) };
+    }).then(v => alive && setInfo(JSON.parse(v.image)), e => alive && setInfo({ kind: "other", line: "", detail: [], error: String(e) }));
+    return () => {
+      alive = false;
+    };
+  }, [src]);
+  const asking = s.tasks.some(t => t.title === `Preview: ${a.name}` && ["queued", "working", "held"].includes(t.status));
+  return (
+    <div className="media preview" style={{ aspectRatio: "1", background: "var(--raise)" }}>
+      <div className="preview-note" style={{ alignContent: "center" }}>
+        <Icon name={info?.kind === "animation" ? "right" : info?.kind === "vfx" ? "lead" : "library"} size={22} style={{ color: "var(--accent-text)" }} />
+        <div style={{ fontSize: 11.5, color: "var(--text)", lineHeight: 1.35 }}>{info ? info.error ?? info.line : "Reading…"}</div>
+        {!!info?.detail.length && <div className="dim" style={{ fontSize: 10.5 }}>{info.detail.slice(0, 3).join(", ")}</div>}
+        <button className="btn sm" style={{ marginTop: 4 }} disabled={asking} onClick={e => { e.stopPropagation(); void makePreview(s, a).then(() => toast("The Librarian is rendering it in Studio")); }} onDoubleClick={e => e.stopPropagation()}>{asking ? "Rendering…" : "Make preview"}</button>
+      </div>
+      <span className="preview-tag">.{ext(src)}</span>
+    </div>
+  );
+}
+
 // What a Library card shows: a render for models and animations, a waveform for sounds, the
 // clip for videos, the picture for everything else.
 export function AssetPreview({ a }: { a: Asset }) {
   const src = a.file_url;
   if (!src) return <div style={{ aspectRatio: "1", background: "var(--raise)", borderRadius: 8 }} />;
   const e = ext(src);
-  if (MODEL.includes(e)) return <ModelPreview src={src} kind={a.kind} />;
-  if (AUDIO.includes(e) || (a.kind === "sound" && !/^https?:/.test(src))) return <SoundPreview src={src} />;
-  if (VIDEO.includes(e)) return <VideoPreview src={src} />;
-  if (["rbxm", "rbxmx", "blend", "dae", "stl"].includes(e)) {
+  const rendered = previewOf(a.tags);
+  if (rendered) {
     return (
-      <div className="media preview" style={{ aspectRatio: "1", display: "grid", placeItems: "center", background: "var(--raise)" }}>
-        <div className="preview-note"><Icon name="library" size={22} /><div>.{e}</div><div className="dim small">opens in Studio or Blender</div></div>
+      <div style={{ position: "relative" }}>
+        <Media src={rendered} style={{ aspectRatio: "1", background: "var(--raise)" }} />
+        <span className="preview-tag">.{e} · rendered in {e === "blend" ? "Blender" : "Studio"}</span>
       </div>
     );
   }
+  if (e === "rbxm" || e === "rbxmx") return <RbxPreview a={a} src={src} />;
+  if (MODEL.includes(e)) return <ModelPreview src={src} kind={a.kind} />;
+  if (AUDIO.includes(e) || (a.kind === "sound" && !/^https?:/.test(src))) return <SoundPreview src={src} />;
+  if (VIDEO.includes(e)) return <VideoPreview src={src} />;
+  if (["blend", "dae", "stl"].includes(e)) return <BlendPreview a={a} e={e} />;
   return <Media src={src} style={{ aspectRatio: "1", background: "var(--raise)" }} />;
 }
