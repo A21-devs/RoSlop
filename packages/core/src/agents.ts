@@ -16,7 +16,7 @@ export const AGENTS: Agent[] = [
   { id: "architect", name: "Architect", short: "AR", color: "#79b8ff", tier: "heavy", job: "Writes the game plan before anything gets built.", studio: false },
   { id: "builder", name: "Builder", short: "BU", color: "#f4b24c", tier: "standard", job: "Writes the code and wires the game together.", studio: true },
   { id: "frame", name: "Frame", short: "FR", color: "#f18cc0", tier: "standard", job: "UI, and making sure it fits on a phone.", studio: true },
-  { id: "scenic", name: "Scenic", short: "SC", color: "#6fd08c", tier: "standard", job: "Builds the world, terrain and lighting.", studio: true },
+  { id: "scenic", name: "Scenic", short: "SC", color: "#6fd08c", tier: "heavy", job: "Builds the world, terrain and lighting.", studio: true },
   { id: "librarian", name: "Librarian", short: "LB", color: "#b49cff", tier: "light", job: "Finds and sets up models, effects and sounds.", studio: false },
   { id: "balance", name: "Balance", short: "BA", color: "#4fd1c5", tier: "standard", job: "Simulates the economy so upgrades feel right.", studio: false },
   { id: "kid", name: "Clueless Tester", short: "CT", color: "#ffd84d", tier: "light", job: "Plays with no clue what the game is and skips every tutorial.", studio: true },
