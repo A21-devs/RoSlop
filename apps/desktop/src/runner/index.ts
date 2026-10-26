@@ -14,6 +14,7 @@ import { decide } from "./schedule";
 import { recordStats } from "./stats";
 import { Usage } from "./usage";
 import { priceBrief } from "./rowatcher";
+import { gatherStuff } from "./stuff";
 import { briefVault, isVaultTask, seedVault } from "./vault";
 import { fetchRefs } from "./refs";
 import { crewReport } from "./crew";
@@ -483,10 +484,14 @@ export class Runner {
     mkdirSync(cwd, { recursive: true });
     await fetchRefs(db, task.brief, cwd).catch(e => events.add(task.id, "error", `Couldn't download the reference files: ${(e as Error).message}`));
 
+    const stuff = await gatherStuff(db, claimed as Task, game, cwd, vault).catch(e => {
+      events.add(task.id, "error", `Couldn't gather the Library and vault for this: ${(e as Error).message}`);
+      return null;
+    });
     const lane = task.needs_studio ? this.pickLane(live.settings, task as Task) : null;
     const crew = task.agent === "lead" ? await crewReport(db, task, [...this.jobs.values()].map(j => j.live())).catch(() => null) : null;
     const job = new Job(
-      { crew, lane, db, userId: live.userId, settings: { ...live.settings, vault_path: vault }, events, usage: live.usage, keys: allKeys(), history },
+      { crew, lane, stuff, db, userId: live.userId, settings: { ...live.settings, vault_path: vault }, events, usage: live.usage, keys: allKeys(), history },
       claimed as Task,
       game,
       cwd,

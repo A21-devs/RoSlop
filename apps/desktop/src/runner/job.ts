@@ -32,6 +32,8 @@ export interface JobDeps {
   // The Lead gets a report on the whole crew with every message.
   crew?: string | null;
   lane?: StudioLane | null;
+  // The owner's Library, references and vault notes picked out for this task.
+  stuff?: string | null;
 }
 
 const STDERR_KEEP = 4000;
@@ -101,7 +103,7 @@ export class Job {
   private spawn(): ChildProcess {
     const { settings, keys } = this.deps;
     const task = this.task;
-    const system = systemPrompt(task, this.game, this.cwd, settings, Object.keys(keys).map(keyEnvName), this.deps.lane ?? null);
+    const system = [systemPrompt(task, this.game, this.cwd, settings, Object.keys(keys).map(keyEnvName), this.deps.lane ?? null), this.deps.stuff].filter(Boolean).join("\n\n");
     const brief = task.brief.trim() || task.title;
     const env = Object.fromEntries(Object.entries(keys).map(([id, v]) => [keyEnvName(id), v]));
     const model = modelFor(task.agent, this.provider);

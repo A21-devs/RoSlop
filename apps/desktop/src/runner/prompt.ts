@@ -1,11 +1,12 @@
 import { blenderBrief, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
-import { BUILDING, PROMPTS, SHARED } from "../prompts";
+import { BUILDING, PROMPTS, SHARED, TEXTURING } from "../prompts";
 import { latestPull } from "./gamedata";
 import { isVideo, refName, refPaths } from "./refs";
 import { shotCommand } from "./shots";
 import { isVaultTask, notesFor } from "./vault";
 
 const BUILD_WORDS = /\b(build|builds|building|map|maps|level|lobby|obby|house|base|island|world|terrain|area|zone|arena|stage|room|city|town|biome|layout|structure|tower|bridge|prop|props|scenery|environment|plot)\b/i;
+const TEXTURE_WORDS = /\b(model|models|modeling|modelling|mesh|meshes|texture|textures|texturing|textured|prop|props|blender|asset|assets|weapon|weapons|sword|tool|character|tree|trees|rock|rocks|crate|furniture|hand-?painted|stylized|material|materials)\b/i;
 
 export function systemPrompt(task: Task, game: Game | null, cwd: string, settings: Settings, keyNames: string[], lane: StudioLane | null = null): string {
   const lines = ["## This job", `Game: ${game?.name ?? "none yet"}`, `Project folder: ${cwd}`];
@@ -88,7 +89,8 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
     );
   }
 
-  if (settings.savings.tagged_notes && settings.vault_path) {
+  // Everyone else gets notes picked by topic and folder along with the Library (see stuff.ts).
+  if (settings.savings.tagged_notes && settings.vault_path && (task.agent === "lead" || task.agent === "pulse")) {
     const notes = notesFor(settings.vault_path, task.agent);
     if (notes.length) {
       lines.push("", "Vault notes for you:");
@@ -98,7 +100,8 @@ export function systemPrompt(task: Task, game: Game | null, cwd: string, setting
 
   // Scenic always builds; anyone else gets the guide when the job is putting geometry in a place.
   const builds = task.agent === "scenic" || (["builder", "frame", "playtest"].includes(task.agent) && BUILD_WORDS.test(`${task.title} ${task.brief}`));
-  return [SHARED.trim(), PROMPTS[task.agent].trim(), builds ? BUILDING.trim() : "", lines.join("\n")].filter(Boolean).join("\n\n");
+  const textures = ["librarian", "scenic", "splash", "builder"].includes(task.agent) && TEXTURE_WORDS.test(`${task.title} ${task.brief}`);
+  return [SHARED.trim(), PROMPTS[task.agent].trim(), builds ? BUILDING.trim() : "", textures ? TEXTURING.trim() : "", lines.join("\n")].filter(Boolean).join("\n\n");
 }
 
 export function keyEnvName(id: string) {
