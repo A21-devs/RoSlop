@@ -1,11 +1,11 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { app } from "electron";
-import { estimate, serverFor, windowElapsed, WINDOW_MIN, type Game, type MarketItem, type Machine, type RunnerStatus, type Settings, type StudioLane, type Task } from "@roslop/core";
+import { estimate, serverFor, stylesFor, windowElapsed, WINDOW_MIN, type Game, type MarketItem, type Machine, type RunnerStatus, type Settings, type StudioLane, type Task } from "@roslop/core";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { allKeys, getKey } from "../keys";
 import { cliFound } from "./cli";
-import { listServers } from "./mcp";
+import { addServer, listServers } from "./mcp";
 import { connect, fail, loadSettings, Tokens, withDefaults, type Auth } from "./db";
 import { Events } from "./events";
 import { Job, type StopReason } from "./job";
@@ -13,11 +13,18 @@ import { heartbeat, registerMachine, shouldWork, STUDIO_SLOTS } from "./machine"
 import { decide } from "./schedule";
 import { recordStats } from "./stats";
 import { Usage } from "./usage";
+import { priceBrief } from "./rowatcher";
+import { afterJob } from "./director";
+import { gatherStuff } from "./stuff";
+import { BUILD_WORDS } from "./prompt";
+import { IMPORT_TITLE, runImport } from "./imports";
+import { frameServer, styleRefs } from "./style";
 import { briefVault, isVaultTask, seedVault } from "./vault";
 import { fetchRefs } from "./refs";
 import { crewReport } from "./crew";
 import { allRows } from "./db";
 import { RobloxUploads } from "./roblox";
+import { countStudios } from "./studios";
 import { latestPull, looksQuick, pullGames, tidyLinks, writeGames, type PullResult } from "./gamedata";
 
 const POLL_MS = 20_000;
@@ -67,7 +74,7 @@ export class Runner {
       machine_id: this.live?.machine.id ?? null,
       provider: this.live?.settings.provider ?? "claude",
       cli_found: this.cli,
-      studios_open: jobs.filter(j => j.task.needs_studio).length,
+      studios_open: this.studiosOpen,
       working: jobs.map(j => j.task.title),
       last_error: this.lastError,
       cli_detail: this.cliDetail,
@@ -120,13 +127,16 @@ export class Runner {
       };
       this.live = live;
       void this.checkConnectors();
+      void frameServer();
       live.timers.push(
         setInterval(() => this.tick(), POLL_MS),
         setInterval(() => void heartbeat(db, machine.id, live.settings.provider).catch(e => this.error(e)), HEARTBEAT_MS),
         setInterval(() => void recordStats(db, userId).catch(() => {}), STATS_MS),
         setInterval(() => this.uploadAssets(), 30_000),
+        setInterval(() => void this.watchStudios(), 10_000),
       );
       this.uploadAssets();
+      void this.watchStudios();
       void recordStats(db, userId).catch(() => {});
       this.lastError = null;
       this.tick();
@@ -206,6 +216,32 @@ export class Runner {
     await live.db.from("settings").update({ connectors, mcp_found: found }).eq("user_id", live.userId);
   }
 
+  // Adds a connector's MCP server to the CLI, switches it on, and checks again.
+  async connect(id: string): Promise<{ ok: boolean; detail: string }> {
+    const live = this.live;
+    if (!live) return { ok: false, detail: "Sign in on this computer first." };
+    const r = await addServer(live.settings.provider, id);
+    if (r.ok) {
+      live.settings = { ...live.settings, connectors: { ...live.settings.connectors, [id]: true } };
+      await live.db.from("settings").update({ connectors: live.settings.connectors }).eq("user_id", live.userId);
+    }
+    if (!r.ok) return r;
+    await this.recheckConnectors();
+    if (serverFor(id, this.live?.settings.mcp_found ?? null)) return { ok: true, detail: "Connected and switched on." };
+    return {
+      ok: false,
+      detail: id === "figma"
+        ? "Added, but the Figma app isn't answering yet. Turn on its desktop MCP server (Dev Mode, right panel), then hit Check again."
+        : "Added, but it isn't answering yet. Start it, then hit Check again.",
+    };
+  }
+
+  async recheckConnectors() {
+    this.checkingFor = "";
+    await this.checkConnectors();
+    this.changed();
+  }
+
   private soon() {
     if (this.poke) clearTimeout(this.poke);
     this.poke = setTimeout(() => this.tick(), 400);
@@ -243,7 +279,7 @@ export class Runner {
           const items: MarketItem[] = rows.map(g => ({
             universe_id: g.universe_id, place_id: g.place_id, name: g.name, genre: g.genre, subgenre: g.subgenre, playing: g.playing,
             likes: g.like_ratio, like_ratio: g.like_ratio, visits: g.visits, favorites: g.favorites, age_days: g.age_days, updated: g.updated,
-            max_players: g.max_players, lists: g.lists, icon: g.icon, quick: looksQuick(g),
+            max_players: g.max_players, lists: g.lists, icon: g.icon, quick: looksQuick(g), creator: g.creator,
           }));
           await live.db.from("market_snapshots").insert({ user_id: live.userId, source: "roblox", sort: "charts and searches", items });
           await live.db.from("market_snapshots").delete().eq("source", "roblox").lt("created_at", new Date(Date.now() - 14 * 864e5).toISOString());
@@ -255,6 +291,19 @@ export class Runner {
       }
     })();
     return this.pulling;
+  }
+
+  // Real Studio windows, so the bar matches what's on screen. Shared through the machine row
+  // so phones and the website see it too.
+  private studiosOpen = 0;
+  private async watchStudios() {
+    const live = this.live;
+    if (!live) return;
+    const n = await countStudios();
+    if (n === this.studiosOpen) return;
+    this.studiosOpen = n;
+    this.changed();
+    await live.db.from("machines").update({ studios_open: n }).eq("id", live.machine.id);
   }
 
   // Which Studio each running agent has, by the name you gave it.
@@ -351,12 +400,13 @@ export class Runner {
     if (running) {
       const why = [
         parentWait && `${parentWait} waiting on an earlier task`,
-        plan.held.studio && `${plan.held.studio} waiting for a Studio slot`,
+        plan.held.studio && `${plan.held.studio} waiting for a Studio slot (you allow ${live.settings.studio.limit ?? live.settings.studio.lanes.length} Studios, Settings, Studios)`,
         plan.held.agent && `${plan.held.agent} waiting for the same agent to finish in Studio`,
         plan.held.pace && `${plan.held.pace} held for usage pace`,
         plan.held.room && `${plan.held.room} waiting for a free spot`,
       ].filter(Boolean);
-      return this.say(running < plan.limit && why.length ? `${running} of ${plan.limit} running. ${why.join(", ")}.` : null);
+      const slowed = plan.limit < live.settings.max_agents ? ` Usage is ahead of pace, so it's running ${plan.limit} at a time instead of ${live.settings.max_agents} until it catches up.` : "";
+      return this.say(running < live.settings.max_agents && (why.length || slowed) ? `${running} of ${live.settings.max_agents} running.${why.length ? ` ${why.join(", ")}.` : ""}${slowed}` : null);
     }
     // Held back by pace on a stale reading? Check the real numbers before making anyone wait.
     if (plan.wait !== undefined && live.settings.provider === "claude" && live.usage.stale) {
@@ -396,6 +446,13 @@ export class Runner {
       .select()
       .maybeSingle();
     if (!claimed) return;
+    if (task.agent === "pulse" && /^Acquisition pitch/.test(task.title)) {
+      const priced = await priceBrief(claimed.brief as string, getKey("rowatcher")).catch(() => null);
+      if (priced) {
+        claimed.brief = priced.brief;
+        events.add(task.id, "note", priced.note);
+      }
+    }
 
     if (answered) events.add(task.id, "note", `You answered: ${answered.answer}`);
 
@@ -420,6 +477,16 @@ export class Runner {
         events.add(task.id, "error", `Couldn't set up the vault at ${vault}: ${(e as Error).message}`);
       }
     }
+    // Imports from the Vault page are just downloads, so this computer does them without an agent.
+    if (IMPORT_TITLE.test(task.title)) {
+      const result = vault
+        ? await runImport(db, vault, claimed.brief as string, t => events.add(task.id, "note", t)).catch(e => `Import failed: ${(e as Error).message}`)
+        : "Pick a vault folder first.";
+      await db.from("tasks").update({ status: "done", result, finished_at: new Date().toISOString(), used: 0 }).eq("id", task.id);
+      this.changed();
+      this.soon();
+      return;
+    }
     // Vault work runs on real numbers, so fetch today's if the vault doesn't have them yet.
     if (vaultJob && vault && task.agent === "lead" && latestPull(vault)?.day !== new Date().toISOString().slice(0, 10)) {
       events.add(task.id, "note", "Pulling real numbers for hundreds of Roblox games first.");
@@ -432,10 +499,26 @@ export class Runner {
     mkdirSync(cwd, { recursive: true });
     await fetchRefs(db, task.brief, cwd).catch(e => events.add(task.id, "error", `Couldn't download the reference files: ${(e as Error).message}`));
 
+    let stuff = await gatherStuff(db, claimed as Task, game, cwd, vault).catch(e => {
+      events.add(task.id, "error", `Couldn't gather the Library and vault for this: ${(e as Error).message}`);
+      return null;
+    });
+    // Gameplay videos the owner wants things to look like, as frames, for anyone making visuals.
+    const visual = ["scenic", "librarian", "splash", "director", "frame"].includes(task.agent) || (task.agent === "builder" && BUILD_WORDS.test(`${task.title} ${task.brief}`));
+    // The game's kind comes from its Studio's setup, so styles saved for "RPG" reach RPG work.
+    const kind = live.settings.studio.lanes.filter(l => l.game_id && l.game_id === task.game_id).map(l => l.type).join(" ");
+    const videos = [...stylesFor(live.settings.style, `${kind} ${game?.name ?? ""} ${task.title} ${claimed.brief}`), ...(claimed.brief as string).match(/https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|x\.com|twitter\.com|tiktok\.com|instagram\.com|vm\.tiktok\.com|streamable\.com|medal\.tv)\/\S+/gi) ?? []];
+    if (visual && videos.length) {
+      const lines = await styleRefs([...new Set(videos)], cwd, t => events.add(task.id, "note", t)).catch(() => [] as string[]);
+      if (lines.length) {
+        const style = ["## What it should look like", "Frames from the gameplay videos the owner picked as the target look. Before you start, Read at least 8 of them spread across every folder, write down the palette, scale, lighting, density and shapes you see, and match them. The owner's references and these frames win over the general bar.", ...lines].join("\n");
+        stuff = [stuff, style].filter(Boolean).join("\n\n");
+      }
+    }
     const lane = task.needs_studio ? this.pickLane(live.settings, task as Task) : null;
     const crew = task.agent === "lead" ? await crewReport(db, task, [...this.jobs.values()].map(j => j.live())).catch(() => null) : null;
     const job = new Job(
-      { crew, lane, db, userId: live.userId, settings: { ...live.settings, vault_path: vault }, events, usage: live.usage, keys: allKeys(), history },
+      { crew, lane, stuff, db, userId: live.userId, settings: { ...live.settings, vault_path: vault }, events, usage: live.usage, keys: allKeys(), history },
       claimed as Task,
       game,
       cwd,
@@ -447,6 +530,7 @@ export class Runner {
     this.changed();
 
     void job.done.then(() => {
+      if (!vaultJob) void afterJob(db, live.userId, task.id, cwd).catch(e => events.add(task.id, "error", `Couldn't hand this to the Art Director: ${(e as Error).message}`));
       if (vaultJob && vault) {
         try {
           tidyLinks(vault);

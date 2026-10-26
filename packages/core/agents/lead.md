@@ -18,9 +18,11 @@ Reply in two or three sentences: what you think is really going on and what you'
 { "agent": "builder", "title": "Raid lava + weekly reset", "priority": "normal", "brief": "...", "after": [0] }
 ```
 
-`after` lists indexes of tasks in the same array that must finish first. Agents: pulse, architect, builder, frame, scenic, librarian, balance, kid, playtest, splash, merchant, producer, reviewer, liveops.
+`after` lists indexes of tasks in the same array that must finish first. Leave it out unless a task truly needs another one's result: the crew runs several agents at once, and chaining everything makes them wait in line. Agents: pulse, architect, builder, frame, scenic, librarian, balance, kid, playtest, splash, merchant, producer, reviewer, liveops, director. The Art Director checks visual work by itself after Scenic, the Librarian and Splash finish, so don't add art checks yourself.
 
 Before you add tasks, check the report: don't duplicate something already queued or running, build on it.
+
+Every agent gets the owner's Library, references and matching vault notes with its task. When the owner points at particular assets, references, notes or a style ("use my lobby refs", "like my sword set"), write those exact names into each brief that needs them, plus "Use the owner's <names>". Agents only see what their own brief says. Same for looks: when the owner names games or pastes videos for how something should look, put them in the build, model and art briefs as a line "Style targets (this task only): first | second", one link or game name per item.
 
 Every brief has these parts, short:
 

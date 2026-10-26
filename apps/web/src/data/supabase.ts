@@ -1,8 +1,14 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { defaultSettings, type Settings, type TableName } from "@roslop/core";
+import { defaultSettings, withDefaults, type GameStat, type Settings, type TableName } from "@roslop/core";
 import { emptySnapshot, TABLES, type Change, type Db, type User } from "./db";
 
 const PAGE = 1000;
+// Every card used to ask for its own signed link, again each time it scrolled back into view.
+// Links are now asked for in one batch per frame and reused until shortly before they expire.
+const LINK_LIFE = 3600;
+const links = new Map<string, { url: Promise<string>; until: number }>();
+const asked = new Map<string, (url: string) => void>();
+let flush: ReturnType<typeof setTimeout> | null = null;
 
 function localExtras(): Partial<Settings> {
   try {
@@ -100,13 +106,7 @@ export function cloudDb(url: string, anonKey: string): Db {
       }
       const base = defaultSettings(uid);
       const extra = localExtras();
-      const merged = { ...base, ...settings, ...extra } as Settings;
-      const snap = emptySnapshot({
-        ...merged,
-        savings: { ...base.savings, ...merged.savings },
-        blender: { ...base.blender, ...merged.blender },
-        studio: { ...base.studio, ...merged.studio, lanes: merged.studio?.lanes?.length ? merged.studio.lanes : base.studio.lanes },
-      });
+      const snap = emptySnapshot(withDefaults(base, { ...settings, ...extra }));
       // Events and stats grow forever, so only pull recent ones up front.
       // Supabase hands back at most 1,000 rows a request, so page through until there's no more.
       const since = new Date(Date.now() - 14 * 864e5).toISOString();
@@ -193,6 +193,16 @@ export function cloudDb(url: string, anonKey: string): Db {
         for (const id of chunk) emit({ table, row: { id }, gone: true });
       }
     },
+    async statsFor(gameId, from, to) {
+      const rows: GameStat[] = [];
+      for (let start = 0; ; start += PAGE) {
+        const { data, error } = await sb.from("game_stats").select("*").eq("game_id", gameId).gte("created_at", from).lte("created_at", to).order("created_at").range(start, start + PAGE - 1);
+        check(error);
+        rows.push(...((data ?? []) as GameStat[]));
+        if (!data || data.length < PAGE) break;
+      }
+      return rows;
+    },
     async clearAssets(which) {
       const rows: { id: string; file_url: string | null }[] = [];
       for (let from = 0; ; from += PAGE) {
@@ -226,16 +236,40 @@ export function cloudDb(url: string, anonKey: string): Db {
       check(error);
     },
 
-    async upload(file, folder) {
-      const path = `${current!.id}/${folder}/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
-      const { error } = await sb.storage.from("files").upload(path, file);
+    async upload(file, folder, at) {
+      const name = file instanceof File ? file.name : "file";
+      const path = at ?? `${current!.id}/${folder}/${Date.now()}-${name.replace(/[^\w.-]/g, "_")}`;
+      const { error } = await sb.storage.from("files").upload(path, file, { upsert: !!at });
+      // Supabase's free plan takes files up to 50 MB.
+      if (error && /exceeded|too large|maximum allowed size|413/i.test(error.message)) {
+        throw new Error(`${name} is ${Math.round(file.size / 1e6)} MB, more than your Supabase storage takes (50 MB on the free plan). Trim or compress it, or raise the limit in Supabase, Storage settings.`);
+      }
       check(error);
       return path;
     },
-    async fileUrl(path) {
-      if (/^(https?|data|blob):/.test(path)) return path;
-      const { data } = await sb.storage.from("files").createSignedUrl(path, 3600);
-      return data?.signedUrl ?? "";
+    fileUrl(path) {
+      if (/^(https?|data|blob):/.test(path)) return Promise.resolve(path);
+      const hit = links.get(path);
+      if (hit && hit.until > Date.now()) return hit.url;
+      const url = new Promise<string>(done => {
+        asked.set(path, done);
+        flush ??= setTimeout(async () => {
+          const batch = [...asked];
+          asked.clear();
+          flush = null;
+          for (let i = 0; i < batch.length; i += 100) {
+            const part = batch.slice(i, i + 100);
+            const { data } = await sb.storage.from("files").createSignedUrls(part.map(([p]) => p), LINK_LIFE);
+            const got = new Map((data ?? []).map(d => [d.path, d.signedUrl]));
+            for (const [p, res] of part) {
+              if (!got.get(p)) links.delete(p);
+              res(got.get(p) ?? "");
+            }
+          }
+        }, 0);
+      });
+      links.set(path, { url, until: Date.now() + (LINK_LIFE - 300) * 1000 });
+      return url;
     },
 
     async session() {

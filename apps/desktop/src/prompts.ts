@@ -1,8 +1,12 @@
 import type { AgentId } from "@roslop/core";
 import shared from "@roslop/core/agents/_shared.md";
+import building from "@roslop/core/agents/_building.md";
+import texturing from "@roslop/core/agents/_texturing.md";
+import modeling from "@roslop/core/agents/_modeling.md";
 import architect from "@roslop/core/agents/architect.md";
 import balance from "@roslop/core/agents/balance.md";
 import builder from "@roslop/core/agents/builder.md";
+import director from "@roslop/core/agents/director.md";
 import frame from "@roslop/core/agents/frame.md";
 import kid from "@roslop/core/agents/kid.md";
 import lead from "@roslop/core/agents/lead.md";
@@ -17,8 +21,11 @@ import scenic from "@roslop/core/agents/scenic.md";
 import splash from "@roslop/core/agents/splash.md";
 
 export const SHARED = shared;
+export const BUILDING = building;
+export const TEXTURING = texturing;
+export const MODELING = modeling;
 
 export const PROMPTS: Record<AgentId, string> = {
-  architect, balance, builder, frame, kid, lead, librarian, liveops,
+  architect, balance, builder, director, frame, kid, lead, librarian, liveops,
   merchant, playtest, producer, pulse, reviewer, scenic, splash,
 };

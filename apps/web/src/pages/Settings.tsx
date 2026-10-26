@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useParams } from "react-router-dom";
-import { AGENTS, ago, CONNECTORS, KEYS, MODELS, pct, projected, SAVINGS, serverFor, WINDOW_MIN, type AppEntry, type MachineRole, type RunnerStatus, type Settings as S, type Tier } from "@roslop/core";
+import { AGENTS, ago, CONNECTORS, GAME_TYPES, KEYS, MODELS, pct, projected, SAVINGS, needsSignIn, serverFor, WINDOW_MIN, type AppEntry, type MachineRole, type RunnerStatus, type Settings as S, type Tier } from "@roslop/core";
 import { resetDemo } from "../data/demo";
 import { db, toast, useData, useSnap, useUsage } from "../data/store";
 import { Av, Icon, Seg, Toggle } from "../ui/bits";
@@ -8,7 +8,7 @@ import { ModelFields } from "../ui/ModelRules";
 import { saveStudio } from "../ui/Board";
 import { settingsOnlyHere } from "../data/supabase";
 
-const SECTIONS = [["usage", "Usage"], ["studios", "Studios"], ["computers", "Computers and apps"], ["connectors", "Connectors"], ["keys", "Keys"], ["provider", "AI provider"], ["account", "Account"], ["look", "Look"]] as const;
+const SECTIONS = [["usage", "Usage"], ["studios", "Studios"], ["style", "Style targets"], ["computers", "Computers and apps"], ["connectors", "Connectors"], ["keys", "Keys"], ["provider", "AI provider"], ["account", "Account"], ["look", "Look"]] as const;
 
 const save = (patch: Partial<S>) => db.saveSettings(patch);
 
@@ -227,8 +227,14 @@ function Computers() {
 }
 
 const SETUP: Record<string, string> = {
-  figma: "claude mcp add --transport http figma https://mcp.figma.com/mcp",
-  blender: "claude mcp add blender -- uvx blender-mcp",
+  figma: "claude mcp add -s user --transport http figma-desktop http://127.0.0.1:3845/mcp",
+  blender: "claude mcp add -s user blender -- uvx blender-mcp",
+};
+
+// What has to be running for the one-click setups to work.
+const BEFORE: Record<string, string> = {
+  figma: "Open the Figma desktop app, open a design file, switch to Dev Mode (Shift+D) and turn on the desktop MCP server in the right panel. It needs a Dev or Full seat.",
+  blender: "You also need the Blender MCP add-on installed and turned on inside Blender, and uv installed.",
 };
 
 function BlenderRules() {
@@ -253,31 +259,60 @@ function BlenderRules() {
 function Connectors() {
   const st = useSnap().settings;
   const found = st.mcp_found;
+  const [busy, setBusy] = useState<string | null>(null);
+  const desk = window.roslop;
   const status = (id: string) => {
     if (found === null) return <span className="pill">Not checked yet</span>;
-    return serverFor(id, found) ? <span className="pill ok">Found</span> : <span className="pill warn">Not set up</span>;
+    const name = serverFor(id, found);
+    if (name) return <span className="pill ok" title={name}>Connected</span>;
+    return needsSignIn(id, found) ? <span className="pill warn">Needs sign-in</span> : <span className="pill warn">Not set up</span>;
+  };
+  const connect = async (id: string) => {
+    setBusy(id);
+    const r = await desk!.connect(id).catch(e => ({ ok: false, detail: String(e) }));
+    setBusy(null);
+    toast(r.detail || (r.ok ? "Connected" : "Couldn't add it"), !r.ok);
+  };
+  const recheck = async () => {
+    setBusy("check");
+    await desk!.recheckConnectors().catch(() => {});
+    setBusy(null);
   };
   return (
     <>
-      <h1 className="page">Connectors</h1>
-      <p className="lede">Switch on whatever you want the crew to use. Your worker checks what's actually set up in {st.provider === "claude" ? "Claude Code" : "Codex"}, and anything that isn't gets switched back off with a note on how to add it.</p>
+      <div className="row" style={{ alignItems: "flex-end" }}>
+        <div className="grow">
+          <h1 className="page">Connectors</h1>
+          <p className="lede">Switch on whatever you want the crew to use. Your worker checks what's actually set up in {st.provider === "claude" ? "Claude Code" : "Codex"}, including connectors from your Claude account and plugins, and anything that isn't gets switched back off with a note on how to add it.</p>
+        </div>
+        {desk && <button className="btn sm" disabled={busy === "check"} onClick={recheck}>{busy === "check" ? "Checking…" : "Check again"}</button>}
+      </div>
       <div className="card list" style={{ marginTop: 18, padding: "0 16px" }}>
-        {CONNECTORS.map(c => (
-          <div key={c.id} style={{ padding: "12px 0" }}>
-            <div className="row" style={{ gap: 12 }}>
-              <div className="grow"><div style={{ fontWeight: 500 }}>{c.name}</div><div className="muted small">{c.use}</div></div>
-              {status(c.id)}
-              <Toggle on={!!st.connectors[c.id]} onChange={v => save({ connectors: { ...st.connectors, [c.id]: v } })} />
-            </div>
-            {found !== null && !serverFor(c.id, found) && (
-              <div className="small muted" style={{ marginTop: 6 }}>
-                To add it, run this on your worker{SETUP[c.id] ? ":" : ", then switch it on again."}
-                {SETUP[c.id] ? <code className="mono" style={{ display: "block", marginTop: 4, padding: "6px 8px", background: "var(--raise)", borderRadius: 6, userSelect: "all" }}>{SETUP[c.id]}</code> : <span className="mono"> claude mcp add …</span>}
-                {c.id === "blender" && <div style={{ marginTop: 4 }}>You also need the Blender MCP add-on installed and turned on inside Blender.</div>}
+        {CONNECTORS.map(c => {
+          const signIn = found && !serverFor(c.id, found) ? needsSignIn(c.id, found) : undefined;
+          return (
+            <div key={c.id} style={{ padding: "12px 0" }}>
+              <div className="row" style={{ gap: 12 }}>
+                <div className="grow"><div style={{ fontWeight: 500 }}>{c.name}</div><div className="muted small">{c.use}{serverFor(c.id, found) ? <span className="mono"> · {serverFor(c.id, found)}</span> : null}</div></div>
+                {status(c.id)}
+                <Toggle on={!!st.connectors[c.id]} onChange={v => save({ connectors: { ...st.connectors, [c.id]: v } })} />
               </div>
-            )}
-          </div>
-        ))}
+              {found !== null && !serverFor(c.id, found) && (
+                <div className="small muted col" style={{ marginTop: 6, gap: 6 }}>
+                  {signIn && <div><b>{signIn}</b> is set up but not signed in. In a terminal run <span className="mono">claude</span>, type <span className="mono">/mcp</span>, pick it and sign in, then hit Check again.{SETUP[c.id] ? " Or skip the sign-in:" : ""}</div>}
+                  {BEFORE[c.id] && <div>{BEFORE[c.id]}</div>}
+                  {desk && SETUP[c.id] && st.provider === "claude" && (
+                    <div><button className="btn sm pri" disabled={busy === c.id} onClick={() => connect(c.id)}>{busy === c.id ? "Adding…" : c.id === "figma" ? "Connect through the Figma app" : `Add ${c.name}`}</button></div>
+                  )}
+                  <div>
+                    {desk && SETUP[c.id] ? "Or run this yourself:" : `To add it, run this on your worker${SETUP[c.id] ? ":" : ", then switch it on again."}`}
+                    {SETUP[c.id] ? <code className="mono" style={{ display: "block", marginTop: 4, padding: "6px 8px", background: "var(--raise)", borderRadius: 6, userSelect: "all" }}>{SETUP[c.id]}</code> : <span className="mono"> claude mcp add -s user …</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       {found === null && <p className="muted small" style={{ marginTop: 10 }}>Open the desktop app on your worker and it checks these automatically.</p>}
       <BlenderRules />
@@ -365,7 +400,6 @@ function Provider() {
   );
 }
 
-const GAME_TYPES = ["Tycoon", "Simulator", "Incremental simulator", "RNG", "Tower defense", "Obby", "Battlegrounds", "RPG", "Horror", "Roleplay", "Shooter", "Racing", "Survival", "Story", "Fishing", "Pet sim", "Anime"];
 
 // Name each Studio the way you think of it and say what it's for. Agents get told which one is theirs.
 function Studios() {
@@ -459,9 +493,53 @@ function Look() {
   );
 }
 
+function Style() {
+  const st = useSnap().settings;
+  const [text, setText] = useState("");
+  const [type, setType] = useState("");
+  const list = st.style;
+  const add = () => {
+    const items = text.split(/\n/).map(t => t.trim()).filter(Boolean).filter(t => !list.some(x => x.target === t && x.type === type.trim()));
+    if (items.length) void save({ style: [...list, ...items.map(target => ({ type: type.trim(), target }))] });
+    setText("");
+  };
+  const groups = [...new Set(list.map(x => x.type))].sort((x, y) => (x ? 1 : 0) - (y ? 1 : 0) || x.localeCompare(y));
+  return (
+    <>
+      <h1 className="page">Style targets</h1>
+      <p className="lede">What builds, models and art should look like, for each kind of game. Paste gameplay videos from YouTube, X, TikTok or Medal, or type a game's name and RoSlop finds its gameplay on YouTube. Your computer downloads each video once and pulls frames from it. Building, modeling and art tasks study the ones for their kind of game (set on the Studio it runs in, or named in the task), plus the ones for every game. You can also pick or add some for a single task in Lead chat.</p>
+      <div className="card pad col" style={{ marginTop: 18, gap: 10 }}>
+        <textarea className="textarea" style={{ minHeight: 70 }} placeholder={"https://www.youtube.com/watch?v=…\nhttps://x.com/…/status/…\nRell Seas"} value={text} onChange={e => setText(e.target.value)} />
+        <div className="row wrap" style={{ gap: 8 }}>
+          <span className="muted small">For</span>
+          <input className="input" list="style-types" style={{ width: 200 }} placeholder="Every game" value={type} onChange={e => setType(e.target.value)} />
+          <span className="muted small grow">One per line. Gameplay works best, not trailers made of drawings.</span>
+          <button className="btn pri sm" disabled={!text.trim()} onClick={add}>Add</button>
+        </div>
+        <datalist id="style-types">{GAME_TYPES.map(t => <option key={t} value={t} />)}</datalist>
+      </div>
+      {groups.map(g => (
+        <div key={g || "any"} className="card list" style={{ marginTop: 14, padding: "0 16px" }}>
+          <div style={{ padding: "10px 0 4px", fontWeight: 600 }}>{g || "Every game"}</div>
+          {list.filter(x => x.type === g).map(x => (
+            <div key={x.target} className="row" style={{ padding: "8px 0", gap: 10 }}>
+              <Icon name={/^https?:/.test(x.target) ? "right" : "games"} size={14} style={{ color: "var(--muted)" }} />
+              <span className={`grow ${/^https?:/.test(x.target) ? "mono small" : ""}`} style={{ wordBreak: "break-all" }}>{x.target}</span>
+              <button className="btn sm ghost" onClick={() => save({ style: list.filter(y => y !== x) })}><Icon name="x" size={13} /></button>
+            </div>
+          ))}
+        </div>
+      ))}
+      {!list.length && <div className="card pad muted" style={{ marginTop: 14 }}>Nothing yet. Without targets, agents aim for the general bar in their guides.</div>}
+      {settingsOnlyHere().includes("style") && <div className="warn small" style={{ marginTop: 12 }}>Saved on this device only. Run the Supabase setup again so the desktop app can use these.</div>}
+      <p className="muted small" style={{ marginTop: 10 }}>A video link pasted into any task gets the same treatment for that task.</p>
+    </>
+  );
+}
+
 export function Settings() {
   const { section = "usage" } = useParams();
-  const Page = { usage: Usage, studios: Studios, computers: Computers, connectors: Connectors, keys: Keys, provider: Provider, account: Account, look: Look }[section] ?? Usage;
+  const Page = { usage: Usage, studios: Studios, style: Style, computers: Computers, connectors: Connectors, keys: Keys, provider: Provider, account: Account, look: Look }[section] ?? Usage;
   return (
     <div className="content flush split" style={{ display: "grid", gridTemplateColumns: "220px 1fr", height: "100%" }}>
       <nav className="nav hide-m" style={{ padding: "22px 12px", borderRight: "1px solid var(--line)" }}>

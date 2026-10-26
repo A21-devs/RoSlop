@@ -3,3 +3,5 @@
 You write the Luau and wire the game together in Roblox Studio.
 
 Keep server and client apart. Money, rewards and saves live on the server. Use the existing modules before writing new ones. Test what you changed in Studio before you say DONE, and record a short clip or screenshot as PROOF when there's something to see.
+
+When the job is putting parts in the world (a lobby, an obby, a base), follow the building guide that comes with it, and look at your work in pictures before you say DONE.

@@ -59,7 +59,7 @@ export function Av({ who, size = "" }: { who: Who; size?: "" | "sm" | "lg" }) {
 
 export const agentName = (w: Who | string) => (w === "you" ? "You" : AGENT[w as AgentId]?.name ?? String(w));
 
-export function Media({ src, kind = "image", tag, style, className = "" }: { src: string; kind?: "image" | "video"; tag?: string; style?: React.CSSProperties; className?: string }) {
+export function Media({ src, kind = "image", tag, style, className = "", onOpen }: { src: string; kind?: "image" | "video"; tag?: string; style?: React.CSSProperties; className?: string; onOpen?: () => void }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
     let alive = true;
@@ -69,8 +69,8 @@ export function Media({ src, kind = "image", tag, style, className = "" }: { src
     };
   }, [src]);
   return (
-    <div className={`media ${className}`} style={{ aspectRatio: "16/9", ...style }}>
-      {url && (kind === "video" ? <video src={url} controls playsInline /> : <img src={url} alt="" />)}
+    <div className={`media ${onOpen ? "zoomable" : ""} ${className}`} style={{ aspectRatio: "16/9", ...style }} onClick={onOpen ? e => { e.preventDefault(); e.stopPropagation(); onOpen(); } : undefined}>
+      {url && (kind === "video" && !onOpen ? <video src={url} controls playsInline /> : kind === "video" ? <video src={url} muted playsInline /> : <img src={url} alt="" />)}
       {tag && <span className="tag">{tag}</span>}
     </div>
   );

@@ -163,6 +163,10 @@ alter table settings add column if not exists blender jsonb not null default '{}
 alter table settings add column if not exists mcp_found jsonb;
 alter table settings add column if not exists templates jsonb not null default '[]';
 alter table settings add column if not exists studio jsonb not null default '{}';
+alter table machines add column if not exists studios_open int;
+alter table pitches add column if not exists details jsonb not null default '{}';
+alter table settings add column if not exists folders jsonb not null default '[]';
+alter table settings add column if not exists style jsonb not null default '[]';
 
 -- Each person only ever sees their own rows, and changes stream live to the app.
 do $$

@@ -49,6 +49,9 @@ export interface DesktopBridge {
   openStudio(game: { project_path: string | null; place_id: number | null; universe_id: number | null }): Promise<string>;
   // Public numbers Roblox doesn't allow a browser to fetch: passes, badges, servers.
   gameInfo(universeId: number, placeId: number | null): Promise<GameInfo>;
+  // Adds a connector's MCP server to Claude Code and switches it on.
+  connect(id: string): Promise<{ ok: boolean; detail: string }>;
+  recheckConnectors(): Promise<void>;
 }
 
 declare global {

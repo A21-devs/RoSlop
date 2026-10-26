@@ -4,6 +4,7 @@ import { AGENT, ago, pct, projected, type Task } from "@roslop/core";
 import { answer, askLead, reject } from "../data/actions";
 import { useData, useGameFilter, useSnap, useUsage } from "../data/store";
 import { GameBoard, StudioPanel } from "../ui/Board";
+import { openViewer } from "../ui/Viewer";
 import { Av, Icon, Media, Spark, agentName } from "../ui/bits";
 
 function greeting() {
@@ -100,7 +101,7 @@ export function Home() {
                   <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{p.title}</div>
                   <div className="muted small">{p.note}</div>
                 </div>
-                <Media src={p.url} kind={p.kind} className="hide-m" style={{ width: 150, flex: "none" }} />
+                <Media src={p.url} kind={p.kind} className="hide-m" style={{ width: 150, flex: "none" }} onOpen={() => openViewer(proofs.map(x => ({ src: x.url, kind: x.kind, title: x.title })), proofs.indexOf(p))} />
               </Link>
             ))}
             {!needs && <div className="empty">All clear. The crew will ping you here when they need a call.</div>}

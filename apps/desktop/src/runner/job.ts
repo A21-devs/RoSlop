@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assetKind, modelFor, readSignals, stripPlan, tokensToWindow, type Ask, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
+import { assetKind, modelFor, readSignals, stripPitches, stripPlan, tokensToWindow, type Ask, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
 import type { ChildProcess } from "node:child_process";
 import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,10 +10,10 @@ import { claudeArgs, codexArgs, mcpConfig } from "./commands";
 import { onServers } from "./mcp";
 import { allRows, fail } from "./db";
 import type { Events } from "./events";
-import { saveMarket } from "./market";
+import { saveMarket, savePitches } from "./market";
 import { savePlan } from "./plan";
 import { keyEnvName, systemPrompt } from "./prompt";
-import { uploadProof } from "./proofs";
+import { uploadPreview, uploadProof } from "./proofs";
 import { sessions } from "./store";
 import { isVaultTask } from "./vault";
 import { claudeParser, codexParser, type Parser, type StreamEvent } from "./stream";
@@ -32,6 +32,8 @@ export interface JobDeps {
   // The Lead gets a report on the whole crew with every message.
   crew?: string | null;
   lane?: StudioLane | null;
+  // The owner's Library, references and vault notes picked out for this task.
+  stuff?: string | null;
 }
 
 const STDERR_KEEP = 4000;
@@ -101,7 +103,7 @@ export class Job {
   private spawn(): ChildProcess {
     const { settings, keys } = this.deps;
     const task = this.task;
-    const system = systemPrompt(task, this.game, this.cwd, settings, Object.keys(keys).map(keyEnvName), this.deps.lane ?? null);
+    const system = [systemPrompt(task, this.game, this.cwd, settings, Object.keys(keys).map(keyEnvName), this.deps.lane ?? null), this.deps.stuff].filter(Boolean).join("\n\n");
     const brief = task.brief.trim() || task.title;
     const env = Object.fromEntries(Object.entries(keys).map(([id, v]) => [keyEnvName(id), v]));
     const model = modelFor(task.agent, this.provider);
@@ -153,6 +155,10 @@ export class Job {
   private signals(text: string) {
     for (const s of readSignals(text)) {
       if (s.kind === "done") this.summary = s.summary;
+      if (s.kind === "preview") {
+        const { db, userId, events } = this.deps;
+        this.uploads.push(uploadPreview(db, userId, this.cwd, s.id, s.path).then(() => events.add(this.task.id, "note", "Preview saved to the Library"), e => events.add(this.task.id, "error", (e as Error).message)));
+      }
       if (s.kind === "asset" && !this.assets.has(s.id)) {
         this.assets.add(s.id);
         this.uploads.push(this.asset(s));
@@ -236,14 +242,18 @@ export class Job {
         if (this.stopped === "drop") sessions.set(task.id, undefined);
       } else if (code === 0 && !spawnError && !this.failedResult) {
         const text = this.finalText || this.allText;
-        const result = this.summary ?? stripPlan(text).replace(/```market[\s\S]*?```/, "").trim().slice(0, 2000);
+        const result = this.summary ?? stripPitches(stripPlan(text)).replace(/```market[\s\S]*?```/, "").trim().slice(0, 2000);
         await update({ status: "done", result, finished_at: now, used });
         sessions.set(task.id, undefined);
         if (task.agent === "lead") {
           const plan = text.includes("```tasks") ? text : this.allText;
           await savePlan(db, userId, task, plan, this.deps.history);
         }
-        if (task.agent === "pulse") await saveMarket(db, userId, text.includes("```market") ? text : this.allText);
+        if (task.agent === "pulse") {
+          await saveMarket(db, userId, text.includes("```market") ? text : this.allText);
+          const n = await savePitches(db, userId, text.includes("```pitch") ? text : this.allText);
+          if (n) events.add(task.id, "note", `${n} pitch${n > 1 ? "es" : ""} added to Pitches`);
+        }
       } else {
         await update({ status: "failed", finished_at: now, used });
         sessions.set(task.id, undefined);

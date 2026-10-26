@@ -75,6 +75,8 @@ function handlers() {
   ipcMain.handle("roslop:getKey", (_, id: string) => getKey(id));
   ipcMain.handle("roslop:setKey", (_, id: string, value: string | null) => setKey(id, value));
   ipcMain.handle("roslop:scanApps", () => scanApps());
+  ipcMain.handle("roslop:connect", (_, id: string) => runner.connect(id));
+  ipcMain.handle("roslop:recheckConnectors", () => runner.recheckConnectors());
   ipcMain.handle("roslop:openStudio", (_, g) => openStudio(g));
   ipcMain.handle("roslop:gameInfo", (_, universeId: number, placeId: number | null) => gameInfo(universeId, placeId));
   ipcMain.handle("roslop:pullGames", async (_, vault: string | null) => {

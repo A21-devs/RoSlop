@@ -1,4 +1,4 @@
-import type { BlenderRules, Settings } from "./types";
+import type { BlenderRules, Settings, StyleTarget } from "./types";
 
 export const SAVINGS = [
   { id: "short_handoffs", name: "Short handoffs", what: "Agents pass a summary to the next one, not the whole chat", cut: 0.3 },
@@ -19,7 +19,12 @@ export const CONNECTORS = [
 
 // Matches a connector to a server name from `claude mcp list`, like "figma" or "blender-mcp".
 export function serverFor(id: string, found: string[] | null): string | undefined {
-  return found?.find(n => n.toLowerCase().includes(id));
+  return found?.find(n => !n.startsWith("auth:") && n.toLowerCase().includes(id));
+}
+
+// Set up in the CLI but not signed in yet.
+export function needsSignIn(id: string, found: string[] | null): string | undefined {
+  return found?.find(n => n.startsWith("auth:") && n.toLowerCase().includes(id))?.slice(5);
 }
 
 export const BLENDER_STYLES = [
@@ -82,7 +87,42 @@ export function defaultSettings(user_id: string): Settings {
     studio_mcp: null,
     blender: BLENDER_DEFAULTS,
     templates: [],
+    folders: [],
+    style: [],
     studio: { limit: null, lanes: [{ name: "Studio 1", game_id: null, type: "" }, { name: "Studio 2", game_id: null, type: "" }] },
     mcp_found: null,
   };
 }
+
+// Fills in what a saved row is missing: columns added after it was made come back empty or as
+// '{}', and those shouldn't wipe out the defaults.
+export function withDefaults(base: Settings, row: Partial<Settings> | null | undefined): Settings {
+  if (!row) return base;
+  const set = Object.fromEntries(Object.entries(row).filter(([, v]) => v !== null && v !== undefined)) as Partial<Settings>;
+  const studio = (set.studio ?? {}) as Partial<Settings["studio"]>;
+  return {
+    ...base,
+    ...set,
+    savings: { ...base.savings, ...set.savings },
+    blender: { ...base.blender, ...set.blender },
+    apps: Array.isArray(set.apps) ? set.apps : base.apps,
+    templates: Array.isArray(set.templates) ? set.templates : base.templates,
+    folders: Array.isArray(set.folders) ? set.folders : base.folders,
+    style: Array.isArray(set.style) ? set.style.map(t => (typeof t === "string" ? { type: "", target: t } : t)).filter(t => t?.target) : base.style,
+    studio: { limit: studio.limit ?? null, lanes: Array.isArray(studio.lanes) && studio.lanes.length ? studio.lanes : base.studio.lanes },
+  };
+}
+
+// The style targets for a job: the task's own if it has them, otherwise the ones saved for its
+// kind of game plus the ones for every game.
+export const STYLE_LINE = /^Style targets \(this task only\): (.+)$/m;
+
+export function stylesFor(style: StyleTarget[], about: string): string[] {
+  const own = about.match(STYLE_LINE)?.[1];
+  if (own) return own.split(" | ").map(t => t.trim()).filter(Boolean);
+  const text = about.toLowerCase();
+  return style.filter(s => !s.type || text.includes(s.type.toLowerCase())).map(s => s.target);
+}
+
+// Kinds of game, for Studios and style targets.
+export const GAME_TYPES = ["Tycoon", "Simulator", "Incremental simulator", "RNG", "Tower defense", "Obby", "Battlegrounds", "RPG", "Horror", "Roleplay", "Shooter", "Racing", "Survival", "Story", "Fishing", "Pet sim", "Anime"];

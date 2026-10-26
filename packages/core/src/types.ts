@@ -1,6 +1,6 @@
 export type AgentId =
   | "lead" | "pulse" | "architect" | "builder" | "frame" | "scenic" | "librarian" | "balance"
-  | "kid" | "playtest" | "splash" | "merchant" | "producer" | "reviewer" | "liveops";
+  | "kid" | "playtest" | "splash" | "merchant" | "producer" | "reviewer" | "liveops" | "director";
 
 export type Tier = "heavy" | "standard" | "light";
 export type Provider = "claude" | "codex";
@@ -78,6 +78,29 @@ export interface PitchStat {
   sub?: string;
 }
 
+export interface PitchDeal {
+  type: "stake" | "buyout";
+  percent?: number;
+  price: string;
+  terms: string;
+}
+
+// The richer parts of a pitch. "acquire" pitches are about buying a game that already exists.
+export interface PitchDetails {
+  kind?: "build" | "acquire";
+  window?: string;
+  tags?: string[];
+  different?: string;
+  vs?: string[];
+  proof?: string;
+  chosen?: string;
+  target?: { name: string; universe_id?: number; place_id?: number; creator?: string; playing?: number; visits?: number; likes?: number | null; age_days?: number };
+  deals?: PitchDeal[];
+  valuation?: string;
+  upside?: string;
+  outreach?: string;
+}
+
 export interface Pitch extends Row {
   title: string;
   summary: string;
@@ -91,9 +114,10 @@ export interface Pitch extends Row {
   score: number;
   status: "waiting" | "approved" | "changes" | "declined";
   source: Who;
+  details?: PitchDetails;
 }
 
-export type AssetKind = "icon" | "model" | "sound" | "vfx" | "ui" | "reference";
+export type AssetKind = "icon" | "model" | "sound" | "vfx" | "ui" | "animation" | "reference";
 
 export interface Asset extends Row {
   game_id: string | null;
@@ -113,6 +137,8 @@ export interface Machine extends Row {
   last_seen: string;
   studio_slots: number;
   provider: Provider | null;
+  // Roblox Studio windows actually open on that computer, counted by the desktop app.
+  studios_open?: number | null;
 }
 
 export interface Message extends Row {
@@ -155,6 +181,7 @@ export interface MarketItem {
   lists?: string[];
   icon?: string | null;
   quick?: boolean;
+  creator?: string;
 }
 
 export interface MarketSnapshot extends Row {
@@ -222,6 +249,16 @@ export interface Settings {
   mcp_found: string[] | null;
   templates: Template[];
   studio: StudioSetup;
+  // Library groups as paths, like "Weapons/Environmental/Stylized". An asset's group is a "group:" tag.
+  folders: string[];
+  // What builds and art should look like, per kind of game: gameplay video links (YouTube, X,
+  // TikTok) or game names. type "" applies to every game.
+  style: StyleTarget[];
+}
+
+export interface StyleTarget {
+  type: string;
+  target: string;
 }
 
 export interface Tables {
