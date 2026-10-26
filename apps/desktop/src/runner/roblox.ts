@@ -66,6 +66,7 @@ export class RobloxUploads {
         .is("roblox_id", null)
         .not("file_url", "is", null)
         .neq("kind", "reference")
+        .neq("kind", "animation")
         .order("created_at")
         .limit(BATCH + this.skip.size);
       const rows = ((data ?? []) as Asset[]).filter(a => !this.skip.has(a.id)).slice(0, BATCH).filter(a => a.file_url && !/^(https?|data|blob):/.test(a.file_url) && TYPES.some(([re]) => re.test(a.file_url!)));

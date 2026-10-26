@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { assetKind, type AssetKind, type RunnerStatus } from "@roslop/core";
+import { assetKind, groupOf, withGroup, type AssetKind, type RunnerStatus } from "@roslop/core";
 import { messageAgent, remove, uploadAsset } from "../data/actions";
 import { db, toast, useData, useGameFilter, useSnap } from "../data/store";
-import { Del, Empty, Icon, Media, Seg } from "../ui/bits";
+import { Del, Empty, Icon, Seg } from "../ui/bits";
 import { openViewer } from "../ui/Viewer";
+import { AssetPreview } from "../ui/Preview";
+import { VirtualGrid } from "../ui/VirtualGrid";
 
 type Tab = "assets" | "references";
-const KINDS: (AssetKind | "all")[] = ["all", "icon", "model", "sound", "vfx", "ui"];
+const KINDS: (AssetKind | "all")[] = ["all", "icon", "model", "animation", "sound", "vfx", "ui"];
 
 
 // Already on Roblox some other way? Paste the id or the link.
@@ -53,10 +55,21 @@ export function Library() {
   const up = useUploads();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [anchor, setAnchor] = useState<string | null>(null);
+  const [path, setPath] = useState("");
+  const [dropOn, setDropOn] = useState<string | null>(null);
   const assets = useGameFilter(s.assets);
-  const shown = assets.filter(a => (tab === "references" ? a.kind === "reference" : a.kind !== "reference"))
-    .filter(a => tab === "references" || kind === "all" || a.kind === kind)
-    .filter(a => !q || a.name.toLowerCase().includes(q.toLowerCase()) || a.roblox_id?.includes(q));
+  const inTab = assets.filter(a => (tab === "references" ? a.kind === "reference" : a.kind !== "reference"))
+    .filter(a => tab === "references" || kind === "all" || a.kind === kind);
+  // Searching looks everywhere; otherwise you see what's in the group you're in.
+  const shown = q
+    ? inTab.filter(a => a.name.toLowerCase().includes(q.toLowerCase()) || a.roblox_id?.includes(q) || groupOf(a.tags).toLowerCase().includes(q.toLowerCase()))
+    : inTab.filter(a => groupOf(a.tags) === path);
+
+  // Groups you made plus any an asset sits in, so nothing gets lost.
+  const folders = [...new Set([...s.settings.folders, ...assets.map(a => groupOf(a.tags)).filter(Boolean)].flatMap(f => f.split("/").map((_, i, parts) => parts.slice(0, i + 1).join("/"))))].sort((a, b) => a.localeCompare(b));
+  const children = q ? [] : folders.filter(f => f.startsWith(path ? `${path}/` : "") && f.split("/").length === (path ? path.split("/").length + 1 : 1));
+  const inside = (f: string) => inTab.filter(a => groupOf(a.tags) === f || groupOf(a.tags).startsWith(`${f}/`)).length;
+  const crumbs = path ? path.split("/").map((name, i, parts) => ({ name, path: parts.slice(0, i + 1).join("/") })) : [];
 
   // Click to pick, shift-click to pick everything between that and the last one.
   const pick = (id: string, range: boolean) => {
@@ -87,8 +100,66 @@ export function Library() {
   }, []);
   useEffect(clearPick, [tab, kind]);
 
+  const saveFolders = (list: string[]) => db.saveSettings({ folders: [...new Set(list)].sort() });
+  const newGroup = async () => {
+    const name = prompt(path ? `New group inside ${path}` : "New group")?.trim().replace(/\//g, "-");
+    if (!name) return;
+    await saveFolders([...s.settings.folders, path ? `${path}/${name}` : name]);
+    toast(`Made ${name}`);
+  };
+  // Re-tags each asset with its new group. Assets with the same tags go in one request.
+  const regroup = async (list: typeof assets, to: (current: string) => string) => {
+    const by = new Map<string, { ids: string[]; tags: string[] }>();
+    for (const a of list) {
+      const tags = withGroup(a.tags, to(groupOf(a.tags)));
+      const key = JSON.stringify(tags);
+      by.set(key, { ids: [...(by.get(key)?.ids ?? []), a.id], tags });
+    }
+    for (const { ids, tags } of by.values()) await db.updateMany("assets", ids, { tags });
+  };
+  const renameGroup = async (f: string) => {
+    const name = prompt("Rename group", f.split("/").pop())?.trim().replace(/\//g, "-");
+    if (!name) return;
+    const to = [...f.split("/").slice(0, -1), name].join("/");
+    const move = (g: string) => (g === f ? to : g.startsWith(`${f}/`) ? to + g.slice(f.length) : g);
+    await saveFolders(folders.map(move));
+    await regroup(assets.filter(a => groupOf(a.tags) === f || groupOf(a.tags).startsWith(`${f}/`)), move);
+    if (path === f || path.startsWith(`${f}/`)) setPath(move(path));
+  };
+  const deleteGroup = async (f: string) => {
+    const parent = f.split("/").slice(0, -1).join("/");
+    const n = inside(f);
+    if (!confirm(`Delete the group ${f}?${n ? ` Its ${n} item${n > 1 ? "s" : ""} move up to ${parent || "the top"}.` : ""}`)) return;
+    await regroup(assets.filter(a => groupOf(a.tags) === f || groupOf(a.tags).startsWith(`${f}/`)), () => parent);
+    await saveFolders(folders.filter(g => g !== f && !g.startsWith(`${f}/`)));
+  };
+  const dragIds = (id: string) => (picked.has(id) ? [...picked] : [id]);
+  const dropInto = (f: string) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes("text/roslop-assets")) return;
+      e.preventDefault();
+      setDropOn(f);
+    },
+    onDragLeave: () => setDropOn(null),
+    onDrop: (e: React.DragEvent) => {
+      const raw = e.dataTransfer.getData("text/roslop-assets");
+      if (!raw) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setDropOn(null);
+      void moveTo(JSON.parse(raw), `group:${f}`);
+    },
+  });
+
   const moveTo = async (ids: string[], to: string) => {
     if (!ids.length || !to) return;
+    if (to.startsWith("group:")) {
+      const target = to.slice(6);
+      await regroup(assets.filter(a => ids.includes(a.id)), () => target);
+      toast(`Moved ${ids.length.toLocaleString()} to ${target || "the top level"}`);
+      clearPick();
+      return;
+    }
     const [field, value] = to.split(":");
     const patch = field === "kind" ? { kind: value as AssetKind } : { game_id: value === "none" ? null : value };
     await db.updateMany("assets", ids, patch);
@@ -105,9 +176,13 @@ export function Library() {
   const moveOptions = (
     <>
       <optgroup label="Tab">
-        {(["icon", "model", "sound", "vfx", "ui", "reference"] as AssetKind[]).map(k => (
+        {(["icon", "model", "animation", "sound", "vfx", "ui", "reference"] as AssetKind[]).map(k => (
           <option key={k} value={`kind:${k}`}>{k === "reference" ? "References" : k === "ui" ? "UI" : k === "vfx" ? "VFX" : `${k[0].toUpperCase()}${k.slice(1)}s`}</option>
         ))}
+      </optgroup>
+      <optgroup label="Group">
+        <option value="group:">Top level</option>
+        {folders.map(f => <option key={f} value={`group:${f}`}>{f.split("/").map((_, i) => (i ? "  " : "")).join("")}{f.replace(/\//g, " / ")}</option>)}
       </optgroup>
       {s.games.length > 0 && (
         <optgroup label="Game">
@@ -124,7 +199,7 @@ export function Library() {
     setBusy(n => n + list.length);
     for (const f of list) {
       try {
-        await uploadAsset(f, tab === "references" ? "reference" : kind !== "all" ? kind : assetKind(f.name, f.type), game === "all" ? null : game);
+        await uploadAsset(f, tab === "references" ? "reference" : kind !== "all" ? kind : assetKind(f.name, f.type), game === "all" ? null : game, withGroup([], path));
       } finally {
         setBusy(n => n - 1);
       }
@@ -139,8 +214,9 @@ export function Library() {
   return (
     <div
       className="content"
-      onDragOver={e => e.preventDefault()}
+      onDragOver={e => e.dataTransfer.types.includes("Files") && e.preventDefault()}
       onDrop={e => {
+        if (!e.dataTransfer.files.length) return;
         e.preventDefault();
         add(e.dataTransfer.files);
       }}
@@ -186,14 +262,38 @@ export function Library() {
             : "Everything with a file is on Roblox. New uploads go up within a minute."}
         </div>
       )}
-      {!shown.length ? <Empty>Nothing here yet.</Empty> : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
-          {shown.map(a => (
+      <div className="row wrap" style={{ gap: 6, marginBottom: 12 }}>
+        <button className={`pill ${dropOn === "" ? "on" : ""}`} style={{ height: 28, padding: "0 12px" }} onClick={() => setPath("")} {...dropInto("")}><Icon name="library" size={12} />{tab === "references" ? "References" : "Assets"}</button>
+        {crumbs.map(c => (
+          <span key={c.path} className="row" style={{ gap: 6 }}>
+            <Icon name="right" size={12} style={{ color: "var(--dim)" }} />
+            <button className={`pill ${c.path === path ? "on" : ""} ${dropOn === c.path ? "on" : ""}`} style={{ height: 28, padding: "0 12px" }} onClick={() => setPath(c.path)} {...dropInto(c.path)}>{c.name}</button>
+          </span>
+        ))}
+        <div className="grow" />
+        {!q && <button className="btn sm" onClick={newGroup}><Icon name="plus" size={13} />New group{path ? " here" : ""}</button>}
+        {q && <span className="muted small">Searching every group</span>}
+      </div>
+      {children.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 14 }}>
+          {children.map(f => (
+            <div key={f} className={`card flat has-del row ${dropOn === f ? "picked" : ""}`} style={{ padding: "12px 14px", gap: 10, cursor: "pointer", borderColor: dropOn === f ? "var(--accent)" : undefined }} onClick={() => setPath(f)} onDoubleClick={e => { e.stopPropagation(); renameGroup(f); }} {...dropInto(f)} title="Click to open, double-click to rename, drop items here to move them in">
+              <Del title="Delete group" onDelete={() => deleteGroup(f)} />
+              <Icon name="library" size={18} style={{ color: "var(--accent-text)" }} />
+              <div className="grow" style={{ minWidth: 0 }}><b className="trunc" style={{ display: "block" }}>{f.split("/").pop()}</b><span className="muted small">{inside(f).toLocaleString()} item{inside(f) === 1 ? "" : "s"}</span></div>
+            </div>
+          ))}
+        </div>
+      )}
+      {!shown.length ? <Empty>{path ? "Nothing in this group yet. Drag items onto it, or use Move to." : "Nothing here yet."}</Empty> : (
+        <VirtualGrid items={shown} keyOf={a => a.id} extra={54} render={a => (
             <div
               key={a.id}
               className={`card flat has-del pickable ${picked.has(a.id) ? "picked" : ""} ${picked.size ? "picking" : ""}`}
-              style={{ padding: 10, cursor: "pointer", userSelect: "none" }}
+              style={{ padding: 10, cursor: "pointer", userSelect: "none", height: "100%", overflow: "hidden" }}
               onClick={e => pick(a.id, e.shiftKey)}
+              draggable
+              onDragStart={e => e.dataTransfer.setData("text/roslop-assets", JSON.stringify(dragIds(a.id)))}
               onDoubleClick={() => {
                 const withFiles = shown.filter(x => x.file_url);
                 if (a.file_url) openViewer(withFiles.map(x => ({ src: x.file_url!, title: x.name })), withFiles.indexOf(a));
@@ -201,7 +301,7 @@ export function Library() {
             >
               <span className="check"><Icon name="check" size={11} /></span>
               <Del onDelete={() => remove("assets", a).then(() => toast(`Deleted ${a.name}`))} />
-              {a.file_url ? <Media src={a.file_url} style={{ aspectRatio: "1", background: "var(--raise)" }} /> : <div style={{ aspectRatio: "1", background: "var(--raise)", borderRadius: 8 }} />}
+              <AssetPreview a={a} />
               <div className="row" style={{ marginTop: 8 }}><b className="grow trunc">{a.name}</b><span className="pill" style={{ height: 18, fontSize: 10 }}>{a.kind}</span></div>
               {a.kind === "reference" ? <div className="mono dim" style={{ marginTop: 3 }}>reference</div> : (
                 <button className={`mono ${a.roblox_id ? "dim" : "warn"}`} style={{ marginTop: 3, textAlign: "left" }} title="Set the Roblox asset id by hand" onClick={e => {
@@ -212,8 +312,7 @@ export function Library() {
                 </button>
               )}
             </div>
-          ))}
-        </div>
+          )} />
       )}
     </div>
   );

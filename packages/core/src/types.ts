@@ -117,7 +117,7 @@ export interface Pitch extends Row {
   details?: PitchDetails;
 }
 
-export type AssetKind = "icon" | "model" | "sound" | "vfx" | "ui" | "reference";
+export type AssetKind = "icon" | "model" | "sound" | "vfx" | "ui" | "animation" | "reference";
 
 export interface Asset extends Row {
   game_id: string | null;
@@ -249,6 +249,8 @@ export interface Settings {
   mcp_found: string[] | null;
   templates: Template[];
   studio: StudioSetup;
+  // Library groups as paths, like "Weapons/Environmental/Stylized". An asset's group is a "group:" tag.
+  folders: string[];
 }
 
 export interface Tables {

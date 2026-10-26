@@ -1,4 +1,4 @@
-import { AGENT, estimate, type AgentId, type Game, type MarketItem, type Pitch, type Priority, type Proof, type Task, type Verdict } from "@roslop/core";
+import { AGENT, estimate, type AgentId, type AssetKind, type Game, type MarketItem, type Pitch, type Priority, type Proof, type Task, type Verdict } from "@roslop/core";
 import { db } from "./store";
 import type { Snapshot } from "./db";
 
@@ -105,9 +105,9 @@ export async function publish(g: Game) {
   await db.update("games", g.id, { stage: "live" });
 }
 
-export async function uploadAsset(file: File, kind: "icon" | "model" | "sound" | "vfx" | "ui" | "reference", game_id: string | null) {
+export async function uploadAsset(file: File, kind: AssetKind, game_id: string | null, tags: string[] = []) {
   const path = await db.upload(file, kind === "reference" ? "references" : "assets");
-  await db.insert("assets", { name: file.name.replace(/\.[^.]+$/, ""), kind, file_url: path, roblox_id: null, tags: [], game_id });
+  await db.insert("assets", { name: file.name.replace(/\.[^.]+$/, ""), kind, file_url: path, roblox_id: null, tags, game_id });
   return path;
 }
 

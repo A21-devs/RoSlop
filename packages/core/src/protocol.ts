@@ -88,8 +88,9 @@ export function stripPlan(text: string): string {
 }
 
 // Which Library tab a file belongs in, from its name.
-export function assetKind(name: string, mime = ""): "icon" | "model" | "sound" | "vfx" | "ui" {
+export function assetKind(name: string, mime = ""): "icon" | "model" | "sound" | "vfx" | "ui" | "animation" {
   const n = name.toLowerCase();
+  if (/(^|[^a-z])(anim|animation|idle|walk|run|jump|attack|emote|dance|swing|punch|kick|death|equip)([^a-z]|$)/.test(n) && !/\.(png|jpe?g|webp)$/.test(n)) return "animation";
   if (/\.(fbx|obj|rbxm|rbxmx|glb|gltf|blend|dae|stl)$/.test(n)) return "model";
   if (/^audio\//.test(mime) || /\.(mp3|ogg|wav|flac|m4a)$/.test(n) || /(^|[^a-z])(sfx|sound|music|audio)([^a-z]|$)/.test(n)) return "sound";
   if (/vfx|fx[_\- .]|particle|effect|flipbook|spritesheet|explosion|smoke|fire|flame|spark|trail|beam|aura|glow|slash|impact|magic|lightning|shockwave/.test(n)) return "vfx";
@@ -165,3 +166,7 @@ export function readPitches(text: string): Omit<Pitch, keyof Row | "status" | "s
 }
 
 export const stripPitches = (text: string) => text.replace(/```pitch[\s\S]*?```/g, "").trim();
+
+// Which Library group an asset sits in, kept as a "group:" tag so no new column is needed.
+export const groupOf = (tags: string[] | null | undefined) => (tags ?? []).find(t => t.startsWith("group:"))?.slice(6) ?? "";
+export const withGroup = (tags: string[] | null | undefined, path: string) => [...(tags ?? []).filter(t => !t.startsWith("group:")), ...(path ? [`group:${path}`] : [])];
