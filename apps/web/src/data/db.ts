@@ -1,4 +1,4 @@
-import type { Settings, TableName, Tables } from "@roslop/core";
+import type { GameStat, Settings, TableName, Tables } from "@roslop/core";
 
 export interface User {
   id: string;
@@ -30,6 +30,8 @@ export interface Db {
   removeMany(table: TableName, ids: string[]): Promise<void>;
   // Every Library item of that sort, files included. Returns how many went.
   clearAssets(which: "assets" | "references"): Promise<number>;
+  // A game's readings between two times, beyond the two weeks loaded up front.
+  statsFor(gameId: string, from: string, to: string): Promise<GameStat[]>;
   saveSettings(patch: Partial<Settings>): Promise<void>;
   upload(file: File, folder: string): Promise<string>;
   fileUrl(path: string): Promise<string>;

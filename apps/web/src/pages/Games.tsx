@@ -83,6 +83,24 @@ function Panel({ title, sub, children }: { title: string; sub: string; children:
   );
 }
 
+type RangeId = "1d" | "3d" | "7d" | "14d" | "30d" | "90d" | "custom";
+const RANGES: { id: Exclude<RangeId, "custom">; label: string; days: number }[] = [
+  { id: "1d", label: "Last day", days: 1 }, { id: "3d", label: "Last 3 days", days: 3 }, { id: "7d", label: "Last week", days: 7 },
+  { id: "14d", label: "Last 2 weeks", days: 14 }, { id: "30d", label: "Last 30 days", days: 30 }, { id: "90d", label: "Last 90 days", days: 90 },
+];
+
+// Long ranges have thousands of readings; average them into at most `max` points for the chart.
+function thin<T extends { created_at: string; playing: number }>(rows: T[], max: number): T[] {
+  if (rows.length <= max) return rows;
+  const size = Math.ceil(rows.length / max);
+  const out: T[] = [];
+  for (let i = 0; i < rows.length; i += size) {
+    const chunk = rows.slice(i, i + size);
+    out.push({ ...chunk[chunk.length - 1], playing: Math.round(chunk.reduce((a, r) => a + r.playing, 0) / chunk.length) });
+  }
+  return out;
+}
+
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const hourName = (h: number) => new Date(2000, 0, 1, h).toLocaleTimeString(undefined, { hour: "numeric" });
 
@@ -115,13 +133,32 @@ export function Games() {
   const likes = last && last.up_votes + last.down_votes ? likesOf(last) : null;
   const visitsToday = today.length > 1 ? today.at(-1)!.visits - today[0].visits : null;
 
+  // The range picked above the charts, fetched from the database so it can go past two weeks.
+  const [range, setRange] = useState<RangeId>("3d");
+  const [custom, setCustom] = useState({ from: new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10), to: new Date().toISOString().slice(0, 10) });
+  const span = range === "custom"
+    ? { from: new Date(`${custom.from}T00:00:00`).toISOString(), to: new Date(`${custom.to}T23:59:59`).toISOString() }
+    : { from: new Date(Date.now() - RANGES.find(r => r.id === range)!.days * 864e5).toISOString(), to: new Date(Date.now() + 60_000).toISOString() };
+  const [ranged, setRanged] = useState<typeof stats>([]);
+  useEffect(() => {
+    if (!g) return;
+    let alive = true;
+    db.statsFor(g.id, span.from, span.to).then(r => alive && setRanged(r), () => alive && setRanged(stats.filter(x => x.created_at >= span.from && x.created_at <= span.to)));
+    return () => {
+      alive = false;
+    };
+  }, [g?.id, span.from.slice(0, 13), span.to.slice(0, 13), stats.length]);
+
   // One reading per day for the longer charts.
   const daily = useMemo(() => {
     const by = new Map<string, (typeof stats)[number]>();
-    for (const x of stats) by.set(x.created_at.slice(0, 10), x);
+    for (const x of ranged) by.set(x.created_at.slice(0, 10), x);
     return [...by.values()];
-  }, [stats]);
-  const recent = stats.slice(-72);
+  }, [ranged]);
+  const recent = useMemo(() => thin(ranged, 400), [ranged]);
+  const short = Date.parse(span.to) - Date.parse(span.from) <= 2.1 * 864e5;
+  const tick = (iso: string) => (short ? new Date(iso).toLocaleTimeString(undefined, { hour: "numeric" }) : day(iso));
+  const rangeLabel = range === "custom" ? `${day(span.from)} to ${day(span.to)}` : RANGES.find(r => r.id === range)!.label.toLowerCase();
   const empty = g?.universe_id ? "Waiting for more readings. The desktop app records them every few minutes." : "Add the universe id in Details to see live numbers.";
 
   const tasks = g ? s.tasks.filter(t => t.game_id === g.id) : [];
@@ -137,7 +174,7 @@ export function Games() {
     });
   };
   const hours = Array.from({ length: 24 }, (_, h) => {
-    const at = stats.filter(x => new Date(x.created_at).getHours() === h);
+    const at = ranged.filter(x => new Date(x.created_at).getHours() === h);
     return at.length ? Math.round(at.reduce((a, x) => a + x.playing, 0) / at.length) : 0;
   });
   const dayAgo = near(stats, Date.now() - 864e5);
@@ -145,7 +182,7 @@ export function Games() {
   const timeline = [
     ...tasks.filter(t => t.status === "done" && t.finished_at).map(t => ({ at: t.finished_at!, who: t.agent, text: t.title, sub: t.result, link: `/tasks?open=${t.id}` })),
     ...(g ? s.proofs.filter(p => p.game_id === g.id && p.decided_at) : []).map(p => ({ at: p.decided_at!, who: p.agent, text: `${p.verdict === "approved" ? "You approved" : p.verdict === "changes" ? "You sent back" : "You rejected"}: ${p.title}`, sub: p.feedback, link: `/review/${p.id}` })),
-  ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 25);
+  ].filter(e => e.at >= span.from && e.at <= span.to).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40);
   const ask = (agent: Parameters<typeof messageAgent>[1], title: string, brief: string) => messageAgent(s, agent, title, brief, g!.id).then(() => toast(`Sent to ${agent}`));
   const dash = g?.universe_id ? `https://create.roblox.com/dashboard/creations/experiences/${g.universe_id}` : null;
 
@@ -188,12 +225,28 @@ export function Games() {
             ))}
           </div>
 
+          {(tab === "charts" || tab === "liveops") && (
+            <div className="row wrap" style={{ gap: 8, marginBottom: 14 }}>
+              <div className="seg">
+                {RANGES.map(r => <button key={r.id} className={range === r.id ? "on" : ""} onClick={() => setRange(r.id)}>{r.label.replace("Last ", "")}</button>)}
+                <button className={range === "custom" ? "on" : ""} onClick={() => setRange("custom")}>Pick dates</button>
+              </div>
+              {range === "custom" && (
+                <>
+                  <input type="date" className="input" style={{ width: 150 }} value={custom.from} max={custom.to} onChange={e => setCustom(c => ({ ...c, from: e.target.value }))} />
+                  <span className="muted">to</span>
+                  <input type="date" className="input" style={{ width: 150 }} value={custom.to} min={custom.from} max={new Date().toISOString().slice(0, 10)} onChange={e => setCustom(c => ({ ...c, to: e.target.value }))} />
+                </>
+              )}
+              <span className="muted small">{ranged.length.toLocaleString()} readings</span>
+            </div>
+          )}
           {tab === "charts" && (
             <>
-              {stats.length < 2 && <div className="card pad muted" style={{ marginBottom: 14 }}>{empty}</div>}
+              {ranged.length < 2 && <div className="card pad muted" style={{ marginBottom: 14 }}>{stats.length < 2 ? empty : "No readings in this range."}</div>}
               <div className="grid2" style={{ marginBottom: 14, gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
-                <Panel title="Players online" sub="every few minutes, last 3 days. Dashed lines are updates the crew finished.">
-                  <Chart lines={[{ name: "Playing", data: recent.map(x => x.playing), color: "var(--accent-text)", area: true }]} labels={recent.map(x => day(x.created_at))} fmtX={i => when(recent[i].created_at)} marks={marksFor(recent)} />
+                <Panel title="Players online" sub={`${rangeLabel}. Dashed lines are updates the crew finished.`}>
+                  <Chart lines={[{ name: "Playing", data: recent.map(x => x.playing), color: "var(--accent-text)", area: true }]} labels={recent.map(x => tick(x.created_at))} fmtX={i => when(recent[i].created_at)} marks={marksFor(recent)} />
                 </Panel>
                 <Panel title="Visits per day" sub="new visits each day">
                   <Chart bars lines={[{ name: "Visits", data: daily.slice(1).map((x, i) => Math.max(0, x.visits - daily[i].visits)), color: "var(--ok)" }]} labels={daily.slice(1).map(x => day(x.created_at))} />
@@ -249,9 +302,9 @@ export function Games() {
             </div>
             <div className="grid2" style={{ marginBottom: 14, gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
               <Panel title="Players and updates" sub="hover to see the count and anything that shipped around then">
-                <Chart lines={[{ name: "Playing", data: recent.map(x => x.playing), color: "var(--accent-text)", area: true }]} labels={recent.map(x => day(x.created_at))} fmtX={i => when(recent[i].created_at)} marks={marksFor(recent)} />
+                <Chart lines={[{ name: "Playing", data: recent.map(x => x.playing), color: "var(--accent-text)", area: true }]} labels={recent.map(x => tick(x.created_at))} fmtX={i => when(recent[i].created_at)} marks={marksFor(recent)} />
               </Panel>
-              <Panel title="When people play" sub="average players by hour of day, your time, last 2 weeks">
+              <Panel title="When people play" sub={`average players by hour of day, your time, ${rangeLabel}`}>
                 <Chart bars lines={[{ name: "Average playing", data: hours, color: "#7a5cff" }]} labels={hours.map((_, h) => (h % 3 === 0 ? hourName(h) : ""))} fmtX={h => hourName(h)} />
               </Panel>
             </div>

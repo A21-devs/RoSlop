@@ -6,6 +6,7 @@ import { toast, useData, useSnap } from "../data/store";
 import { suggestions, TEMPLATES, useTemplates } from "../data/templates";
 import { Del, Icon } from "../ui/bits";
 import { Extras, useExtras } from "../ui/Extras";
+import { askText } from "../ui/Ask";
 
 // Runs in the browser, so coaching a prompt costs none of your usage.
 interface Check {
@@ -62,7 +63,7 @@ export function Coach() {
     nav("/lead");
   };
   const saveTemplate = async () => {
-    const title = prompt("Name this template", written.split("\n")[0].slice(0, 60))?.trim();
+    const title = (await askText("Name this template", written.split("\n")[0].slice(0, 60)))?.trim();
     if (!title) return;
     await mine.save({ id: crypto.randomUUID(), title, body: written, refs: extras.refs.map(r => r.path) });
     toast(`Saved "${title}" to your templates`);

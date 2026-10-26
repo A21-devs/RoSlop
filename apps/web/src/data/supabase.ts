@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { defaultSettings, type Settings, type TableName } from "@roslop/core";
+import { defaultSettings, type GameStat, type Settings, type TableName } from "@roslop/core";
 import { emptySnapshot, TABLES, type Change, type Db, type User } from "./db";
 
 const PAGE = 1000;
@@ -192,6 +192,16 @@ export function cloudDb(url: string, anonKey: string): Db {
         check((await sb.from(table).delete().in("id", chunk)).error);
         for (const id of chunk) emit({ table, row: { id }, gone: true });
       }
+    },
+    async statsFor(gameId, from, to) {
+      const rows: GameStat[] = [];
+      for (let start = 0; ; start += PAGE) {
+        const { data, error } = await sb.from("game_stats").select("*").eq("game_id", gameId).gte("created_at", from).lte("created_at", to).order("created_at").range(start, start + PAGE - 1);
+        check(error);
+        rows.push(...((data ?? []) as GameStat[]));
+        if (!data || data.length < PAGE) break;
+      }
+      return rows;
     },
     async clearAssets(which) {
       const rows: { id: string; file_url: string | null }[] = [];

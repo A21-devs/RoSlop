@@ -85,6 +85,9 @@ export function demoDb(): Db {
     async removeMany(table, ids) {
       for (const id of ids) await this.remove(table, id);
     },
+    async statsFor(gameId, from, to) {
+      return snap.game_stats.filter(x => x.game_id === gameId && x.created_at >= from && x.created_at <= to);
+    },
     async clearAssets(which) {
       const gone = snap.assets.filter(a => (which === "references") === (a.kind === "reference"));
       snap = { ...snap, assets: snap.assets.filter(a => !gone.includes(a)) };

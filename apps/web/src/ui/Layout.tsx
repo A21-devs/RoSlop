@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Crash } from "./Crash";
 import { CrewBar } from "./CrewBar";
 import { Viewer } from "./Viewer";
+import { AskHost } from "./Ask";
 import { useRunner } from "./Board";
 import { AGENTS, pace, pct } from "@roslop/core";
 import { useData, useSnap, useToasts, useUsage } from "../data/store";
@@ -170,6 +171,7 @@ export function Layout() {
       <Tabbar />
       <Toasts />
       <Viewer />
+      <AskHost />
     </div>
   );
 }

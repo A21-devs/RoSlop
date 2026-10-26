@@ -55,7 +55,7 @@ export function Chart({ lines, labels, marks = [], h = 200, bars = false, unit =
             <text x={L - 8} y={T + ih - (ih * k) / 4 + 3.5} textAnchor="end" style={{ fill: "var(--dim)", font: "10px var(--mono)" }}>{short((top * k) / 4)}</text>
           </g>
         ))}
-        {labels.map((t, i) => (i % tickEvery === 0 || i === labels.length - 1) && t ? (
+        {labels.map((t, i) => (i % tickEvery === 0 || i === labels.length - 1) && t && t !== labels[i - tickEvery] ? (
           <text key={i} x={x(i)} y={h - 6} textAnchor={i === 0 ? "start" : i === labels.length - 1 ? "end" : "middle"} style={{ fill: "var(--dim)", font: "10px var(--mono)" }}>{t}</text>
         ) : null)}
         {marks.map((m, k) => <line key={k} x1={x(m.at)} x2={x(m.at)} y1={T} y2={T + ih} style={{ stroke: "var(--warn)", strokeDasharray: "3 3", opacity: 0.55 }} />)}

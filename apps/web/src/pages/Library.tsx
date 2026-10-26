@@ -5,6 +5,7 @@ import { messageAgent, remove, uploadAsset } from "../data/actions";
 import { db, toast, useData, useGameFilter, useSnap } from "../data/store";
 import { Del, Empty, Icon, Seg } from "../ui/bits";
 import { openViewer } from "../ui/Viewer";
+import { askText } from "../ui/Ask";
 import { AssetPreview } from "../ui/Preview";
 import { VirtualGrid } from "../ui/VirtualGrid";
 
@@ -14,7 +15,7 @@ const KINDS: (AssetKind | "all")[] = ["all", "icon", "model", "animation", "soun
 
 // Already on Roblox some other way? Paste the id or the link.
 async function setId(a: { id: string; name: string; roblox_id: string | null }) {
-  const text = prompt(`Roblox asset id or link for ${a.name}`, a.roblox_id ?? "");
+  const text = await askText(`Roblox asset id or link for ${a.name}`, a.roblox_id ?? "", "1234567890 or a create.roblox.com link");
   if (text === null) return;
   const id = text.match(/\d{5,}/)?.[0] ?? null;
   if (text.trim() && !id) return toast("That doesn't look like an asset id or link.", true);
@@ -102,7 +103,7 @@ export function Library() {
 
   const saveFolders = (list: string[]) => db.saveSettings({ folders: [...new Set(list)].sort() });
   const newGroup = async () => {
-    const name = prompt(path ? `New group inside ${path}` : "New group")?.trim().replace(/\//g, "-");
+    const name = (await askText(path ? `New group inside ${path}` : "New group", "", "Environmental"))?.trim().replace(/\//g, "-");
     if (!name) return;
     await saveFolders([...s.settings.folders, path ? `${path}/${name}` : name]);
     toast(`Made ${name}`);
@@ -118,7 +119,7 @@ export function Library() {
     for (const { ids, tags } of by.values()) await db.updateMany("assets", ids, { tags });
   };
   const renameGroup = async (f: string) => {
-    const name = prompt("Rename group", f.split("/").pop())?.trim().replace(/\//g, "-");
+    const name = (await askText("Rename group", f.split("/").pop()))?.trim().replace(/\//g, "-");
     if (!name) return;
     const to = [...f.split("/").slice(0, -1), name].join("/");
     const move = (g: string) => (g === f ? to : g.startsWith(`${f}/`) ? to + g.slice(f.length) : g);
