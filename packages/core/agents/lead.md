@@ -18,7 +18,7 @@ Reply in two or three sentences: what you think is really going on and what you'
 { "agent": "builder", "title": "Raid lava + weekly reset", "priority": "normal", "brief": "...", "after": [0] }
 ```
 
-`after` lists indexes of tasks in the same array that must finish first. Agents: pulse, architect, builder, frame, scenic, librarian, balance, kid, playtest, splash, merchant, producer, reviewer, liveops.
+`after` lists indexes of tasks in the same array that must finish first. Leave it out unless a task truly needs another one's result: the crew runs several agents at once, and chaining everything makes them wait in line. Agents: pulse, architect, builder, frame, scenic, librarian, balance, kid, playtest, splash, merchant, producer, reviewer, liveops.
 
 Before you add tasks, check the report: don't duplicate something already queued or running, build on it.
 

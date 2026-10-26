@@ -368,12 +368,13 @@ export class Runner {
     if (running) {
       const why = [
         parentWait && `${parentWait} waiting on an earlier task`,
-        plan.held.studio && `${plan.held.studio} waiting for a Studio slot`,
+        plan.held.studio && `${plan.held.studio} waiting for a Studio slot (you allow ${live.settings.studio.limit ?? live.settings.studio.lanes.length} Studios, Settings, Studios)`,
         plan.held.agent && `${plan.held.agent} waiting for the same agent to finish in Studio`,
         plan.held.pace && `${plan.held.pace} held for usage pace`,
         plan.held.room && `${plan.held.room} waiting for a free spot`,
       ].filter(Boolean);
-      return this.say(running < plan.limit && why.length ? `${running} of ${plan.limit} running. ${why.join(", ")}.` : null);
+      const slowed = plan.limit < live.settings.max_agents ? ` Usage is ahead of pace, so it's running ${plan.limit} at a time instead of ${live.settings.max_agents} until it catches up.` : "";
+      return this.say(running < live.settings.max_agents && (why.length || slowed) ? `${running} of ${live.settings.max_agents} running.${why.length ? ` ${why.join(", ")}.` : ""}${slowed}` : null);
     }
     // Held back by pace on a stale reading? Check the real numbers before making anyone wait.
     if (plan.wait !== undefined && live.settings.provider === "claude" && live.usage.stale) {
