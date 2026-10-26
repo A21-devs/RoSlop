@@ -19,7 +19,12 @@ export const CONNECTORS = [
 
 // Matches a connector to a server name from `claude mcp list`, like "figma" or "blender-mcp".
 export function serverFor(id: string, found: string[] | null): string | undefined {
-  return found?.find(n => n.toLowerCase().includes(id));
+  return found?.find(n => !n.startsWith("auth:") && n.toLowerCase().includes(id));
+}
+
+// Set up in the CLI but not signed in yet.
+export function needsSignIn(id: string, found: string[] | null): string | undefined {
+  return found?.find(n => n.startsWith("auth:") && n.toLowerCase().includes(id))?.slice(5);
 }
 
 export const BLENDER_STYLES = [

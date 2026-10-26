@@ -35,7 +35,8 @@ export function claudeArgs(r: ClaudeRun): string[] {
   // -p can't ask for permission, so name what the crew may use. Bash covers Blender, tests and Open Cloud uploads.
   const tools = ["Bash", "Read", "Edit", "Write", "Glob", "Grep", "WebFetch", "WebSearch", "TodoWrite"];
   if (r.mcpConfig) tools.push("mcp__roblox_studio");
-  for (const s of r.servers ?? []) tools.push(`mcp__${s}`);
+  // Claude Code turns anything but letters, digits, _ and - in a server name into _ for its tools.
+  for (const s of r.servers ?? []) tools.push(`mcp__${s.replace(/[^\w-]/g, "_")}`);
   args.push("--allowedTools", [...new Set(tools)].join(","));
   if (r.model) args.push("--model", r.model);
   for (const d of r.addDirs ?? []) args.push("--add-dir", d);

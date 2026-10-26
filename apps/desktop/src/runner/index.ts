@@ -5,7 +5,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { allKeys, getKey } from "../keys";
 import { cliFound } from "./cli";
-import { listServers } from "./mcp";
+import { addServer, listServers } from "./mcp";
 import { connect, fail, loadSettings, Tokens, withDefaults, type Auth } from "./db";
 import { Events } from "./events";
 import { Job, type StopReason } from "./job";
@@ -208,6 +208,32 @@ export class Runner {
     this.checkingFor = JSON.stringify([live.settings.provider, connectors]);
     live.settings = { ...live.settings, connectors, mcp_found: found };
     await live.db.from("settings").update({ connectors, mcp_found: found }).eq("user_id", live.userId);
+  }
+
+  // Adds a connector's MCP server to the CLI, switches it on, and checks again.
+  async connect(id: string): Promise<{ ok: boolean; detail: string }> {
+    const live = this.live;
+    if (!live) return { ok: false, detail: "Sign in on this computer first." };
+    const r = await addServer(live.settings.provider, id);
+    if (r.ok) {
+      live.settings = { ...live.settings, connectors: { ...live.settings.connectors, [id]: true } };
+      await live.db.from("settings").update({ connectors: live.settings.connectors }).eq("user_id", live.userId);
+    }
+    if (!r.ok) return r;
+    await this.recheckConnectors();
+    if (serverFor(id, this.live?.settings.mcp_found ?? null)) return { ok: true, detail: "Connected and switched on." };
+    return {
+      ok: false,
+      detail: id === "figma"
+        ? "Added, but the Figma app isn't answering yet. Turn on its desktop MCP server (Dev Mode, right panel), then hit Check again."
+        : "Added, but it isn't answering yet. Start it, then hit Check again.",
+    };
+  }
+
+  async recheckConnectors() {
+    this.checkingFor = "";
+    await this.checkConnectors();
+    this.changed();
   }
 
   private soon() {
