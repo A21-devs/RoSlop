@@ -17,6 +17,12 @@ export function Team() {
   const current = mine.find(t => t.status === "working") ?? mine.find(t => t.status === "queued") ?? mine[0];
   const events = current ? s.task_events.filter(e => e.task_id === current.id).slice(-12) : [];
   const queued = mine.filter(t => t.status === "queued" || t.status === "held").length;
+  // What this agent carries into every task: its own lessons and the owner's calls on its work.
+  const myIds = new Set(mine.map(t => t.id));
+  const learned = s.task_events.filter(e => myIds.has(e.task_id) && e.text.startsWith("Learned: ")).slice(-12).reverse();
+  const calls = s.proofs.filter(p => p.agent === id && p.verdict !== "waiting");
+  const feedback = calls.filter(p => p.feedback?.trim()).sort((x, y) => (y.decided_at ?? "").localeCompare(x.decided_at ?? "")).slice(0, 8);
+  const handed = s.tasks.filter(t => t.requested_by === id).length;
 
   const statusOf = (k: AgentId) => {
     const w = s.tasks.find(t => t.agent === k && t.status === "working");
@@ -87,6 +93,14 @@ export function Team() {
               <button className="btn sm pri" disabled={!text.trim()} onClick={send}><Icon name="up" size={14} /></button>
             </div>
             <div className="dim small">Going straight to an agent skips the Lead. Fine for small stuff.</div>
+            <div className="sec-h" style={{ margin: "8px 0 0" }}><h3>What it's learned</h3><span className="r">{calls.filter(p => p.verdict === "approved").length} approved, {calls.filter(p => p.verdict !== "approved").length} sent back{handed ? `, ${handed} handed to teammates` : ""}</span></div>
+            <div className="card list" style={{ padding: "0 14px" }}>
+              {feedback.map(p => (
+                <div key={p.id} className="small" style={{ padding: "7px 0" }}><span className={p.verdict === "approved" ? "ok" : "warn"}>{p.verdict === "approved" ? "You liked" : "You sent back"}</span> {p.title}: <span className="muted">{p.feedback}</span></div>
+              ))}
+              {learned.map(e => <div key={e.id} className="small" style={{ padding: "7px 0" }}><span className="acc">Noted</span> {e.text.slice(9)}</div>)}
+              {!feedback.length && !learned.length && <div className="muted small" style={{ padding: "12px 0" }}>Nothing yet. Every note you leave in Review, every Art Director call and every lesson {a.name} writes down comes back with its next task. Edit them in your vault under Lessons.</div>}
+            </div>
           </div>
         </div>
       </div>

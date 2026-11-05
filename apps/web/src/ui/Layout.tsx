@@ -65,7 +65,7 @@ function Sidebar() {
         ))}
       </div>
       <div className="side-foot">
-        <nav className="nav">{link("/settings", "settings", "Settings")}</nav>
+        <nav className="nav">{link("/guide", "guide", "Guide")}{link("/settings", "settings", "Settings")}</nav>
         <div className="me">
           <span className="pfp">{(user?.email ?? "?").slice(0, 2)}</span>
           <div className="grow">
@@ -93,7 +93,7 @@ function Meter() {
 
 const TITLES: Record<string, string> = {
   "": "Home", lead: "Lead", team: "Team", tasks: "Tasks", review: "Review", coach: "Prompt engineering",
-  games: "Games", pitches: "Pitches", market: "Market", library: "Library", vault: "Vault", settings: "Settings", more: "More",
+  games: "Games", pitches: "Pitches", market: "Market", library: "Library", vault: "Vault", guide: "Guide", settings: "Settings", more: "More",
 };
 
 function Top() {

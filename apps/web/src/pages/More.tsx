@@ -3,7 +3,7 @@ import { Icon, type IconName } from "../ui/bits";
 
 const LINKS: [string, IconName, string][] = [
   ["/team", "team", "Team"], ["/coach", "coach", "Prompt engineering"], ["/games", "games", "Games"], ["/pitches", "pitches", "Pitches"],
-  ["/market", "market", "Market"], ["/library", "library", "Library"], ["/vault", "vault", "Vault"], ["/settings", "settings", "Settings"],
+  ["/market", "market", "Market"], ["/library", "library", "Library"], ["/vault", "vault", "Vault"], ["/guide", "guide", "Guide"], ["/settings", "settings", "Settings"],
 ];
 
 export function More() {

@@ -9,6 +9,7 @@ import { Library } from "./pages/Library";
 import { Login } from "./pages/Login";
 import { Market } from "./pages/Market";
 import { More } from "./pages/More";
+import { Guide } from "./pages/Guide";
 import { Pitches } from "./pages/Pitches";
 import { Review } from "./pages/Review";
 import { Settings } from "./pages/Settings";
@@ -85,6 +86,7 @@ export function App() {
           <Route path="vault" element={<Vault />} />
           <Route path="settings/:section?" element={<Settings />} />
           <Route path="more" element={<More />} />
+          <Route path="guide" element={<Guide />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

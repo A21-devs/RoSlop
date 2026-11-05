@@ -24,6 +24,9 @@ export interface Game extends Row {
   project_path: string | null;
   stage: Stage;
   version: string;
+  // The Lead keeps planning work toward the goal by itself while usage allows.
+  autopilot?: boolean;
+  goal?: string | null;
 }
 
 export interface Ask {

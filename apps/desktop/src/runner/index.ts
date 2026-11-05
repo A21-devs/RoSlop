@@ -1,6 +1,6 @@
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { app } from "electron";
-import { estimate, serverFor, stylesFor, windowElapsed, WINDOW_MIN, type Game, type MarketItem, type Machine, type RunnerStatus, type Settings, type StudioLane, type Task } from "@roslop/core";
+import { allowance, estimate, serverFor, stylesFor, windowElapsed, WINDOW_MIN, type Game, type MarketItem, type Machine, type RunnerStatus, type Settings, type StudioLane, type Task } from "@roslop/core";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { allKeys, getKey } from "../keys";
@@ -15,6 +15,7 @@ import { recordStats } from "./stats";
 import { Usage } from "./usage";
 import { priceBrief } from "./rowatcher";
 import { afterJob } from "./director";
+import { memoryFor } from "./memory";
 import { gatherStuff } from "./stuff";
 import { BUILD_WORDS } from "./prompt";
 import { IMPORT_TITLE, runImport } from "./imports";
@@ -134,6 +135,7 @@ export class Runner {
         setInterval(() => void recordStats(db, userId).catch(() => {}), STATS_MS),
         setInterval(() => this.uploadAssets(), 30_000),
         setInterval(() => void this.watchStudios(), 10_000),
+        setInterval(() => void this.autopilot().catch(() => {}), 10 * 60_000),
       );
       this.uploadAssets();
       void this.watchStudios();
@@ -240,6 +242,37 @@ export class Runner {
     this.checkingFor = "";
     await this.checkConnectors();
     this.changed();
+  }
+
+  // Games on autopilot: when nothing is open on one and usage is on pace, the Lead looks at where
+  // it stands and plans the next most useful work toward its goal. At most every 3 hours a game.
+  private async autopilot() {
+    const live = this.live;
+    if (!live || !this.cli) return;
+    const { db } = live;
+    const { data } = await db.from("games").select("*").eq("autopilot", true);
+    const games = (data ?? []) as Game[];
+    if (!games.length) return;
+    const window = await live.usage.current();
+    const elapsed = windowElapsed(window.started_at);
+    if (window.used > allowance(elapsed, live.settings.cap) || window.used > live.settings.cap - 0.15) return;
+    for (const g of games) {
+      const { count: open } = await db.from("tasks").select("id", { count: "exact", head: true }).eq("game_id", g.id).in("status", ["queued", "held", "working", "needs_you", "paused"]);
+      if (open) continue;
+      const { data: lastRun } = await db.from("tasks").select("created_at").eq("game_id", g.id).ilike("title", "Autopilot:%").order("created_at", { ascending: false }).limit(1);
+      const last = (lastRun ?? [])[0] as { created_at: string } | undefined;
+      if (last && Date.now() - Date.parse(last.created_at) < 3 * 3600_000) continue;
+      await db.from("tasks").insert({
+        user_id: live.userId, game_id: g.id, agent: "lead", title: `Autopilot: what's next for ${g.name}`,
+        brief: `${g.name} is on autopilot. Nothing is open on it, so decide the next most valuable work and plan it.
+
+Goal: ${g.goal?.trim() || "make it a game players come back to and spend in, one solid improvement at a time"}
+
+Look at the crew report, the game's latest numbers, what the owner approved and sent back, and the lessons in the vault. Pick the 1 to 4 tasks that move the goal most right now (a fix players hit, the next feature, polish where reviews were weak, a playtest after big changes). Don't repeat finished work, don't start anything that spends Robux or publishes, and keep it small enough to finish this usage window. Say in two sentences why these.`,
+        priority: "low", status: "queued", requested_by: "lead", parent_id: null, needs_studio: false, estimate: 0.02,
+      });
+      this.say(`Autopilot planning the next work for ${g.name}.`);
+    }
   }
 
   private soon() {
@@ -503,6 +536,9 @@ export class Runner {
       events.add(task.id, "error", `Couldn't gather the Library and vault for this: ${(e as Error).message}`);
       return null;
     });
+    // What this agent has learned from the owner's calls, the Art Director and its own notes.
+    const memory = await memoryFor(db, claimed as Task, cwd, vault).catch(() => null);
+    if (memory) stuff = [memory, stuff].filter(Boolean).join("\n\n");
     // Gameplay videos the owner wants things to look like, as frames, for anyone making visuals.
     const visual = ["scenic", "librarian", "splash", "director", "frame"].includes(task.agent) || (task.agent === "builder" && BUILD_WORDS.test(`${task.title} ${task.brief}`));
     // The game's kind comes from its Studio's setup, so styles saved for "RPG" reach RPG work.

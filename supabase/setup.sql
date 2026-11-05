@@ -167,6 +167,8 @@ alter table machines add column if not exists studios_open int;
 alter table pitches add column if not exists details jsonb not null default '{}';
 alter table settings add column if not exists folders jsonb not null default '[]';
 alter table settings add column if not exists style jsonb not null default '[]';
+alter table games add column if not exists autopilot boolean not null default false;
+alter table games add column if not exists goal text;
 
 -- Each person only ever sees their own rows, and changes stream live to the app.
 do $$

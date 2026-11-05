@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ago, STAGES, type Game, type GameInfo, type Stage } from "@roslop/core";
 import { addGame, messageAgent, publish } from "../data/actions";
 import { db, toast, useSnap } from "../data/store";
-import { Av, Empty, Icon } from "../ui/bits";
+import { Av, Empty, Icon, Toggle } from "../ui/bits";
 import { Chart } from "../ui/Chart";
 import { playGame } from "../ui/Board";
 
@@ -417,6 +417,15 @@ export function Games() {
                   <select className="input" value={g.stage} onChange={e => db.update("games", g.id, { stage: e.target.value as Stage })}>
                     {STAGES.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
                   </select>
+                </label>
+              </div>
+              <div className="card pad col" style={{ marginBottom: 18, maxWidth: 560, gap: 10 }}>
+                <div className="row" style={{ gap: 12 }}>
+                  <div className="grow"><b>Autopilot</b><div className="muted small">When nothing is open on {g.name} and usage is on pace, the Lead looks at the numbers, your reviews and what the crew learned, and plans the next most useful work toward the goal. At most every 3 hours. It never spends Robux or publishes.</div></div>
+                  <Toggle on={!!g.autopilot} onChange={v => db.update("games", g.id, { autopilot: v }).then(() => toast(v ? `${g.name} is on autopilot` : "Autopilot off"), e => toast(/autopilot/.test(String(e)) ? "Run the Supabase setup again to turn this on." : String(e), true))} />
+                </div>
+                <label className="field"><span>Goal</span>
+                  <textarea className="textarea" style={{ minHeight: 60 }} defaultValue={g.goal ?? ""} placeholder="Get day-1 retention over 25%, then add a trading system and a weekly event" onBlur={e => e.target.value !== (g.goal ?? "") && db.update("games", g.id, { goal: e.target.value.trim() || null })} />
                 </label>
               </div>
               <Pipeline g={g} />

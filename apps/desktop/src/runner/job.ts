@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assetKind, modelFor, readSignals, stripPitches, stripPlan, tokensToWindow, type Ask, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
+import { AGENT, assetKind, carriedLines, modelFor, readSignals, stripPitches, stripPlan, tokensToWindow, type AgentId, type Ask, type Game, type Settings, type StudioLane, type Task } from "@roslop/core";
 import type { ChildProcess } from "node:child_process";
 import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,6 +8,7 @@ import { createInterface } from "node:readline";
 import { killTree, run } from "./cli";
 import { claudeArgs, codexArgs, mcpConfig } from "./commands";
 import { onServers } from "./mcp";
+import { remember } from "./memory";
 import { allRows, fail } from "./db";
 import type { Events } from "./events";
 import { saveMarket, savePitches } from "./market";
@@ -167,12 +168,39 @@ export class Job {
         this.proofPaths.add(s.path);
         this.uploads.push(this.proof(s));
       }
+      if (s.kind === "lesson" && !this.lessons.has(s.text) && this.lessons.size < 3) {
+        this.lessons.add(s.text);
+        try {
+          remember(this.task.agent, s.text, this.task, this.deps.settings.vault_path);
+          this.deps.events.add(this.task.id, "note", `Learned: ${s.text}`);
+        } catch {}
+      }
+      if (s.kind === "handoff" && !this.handoffs.has(s.title) && this.handoffs.size < 3) {
+        this.handoffs.add(s.title);
+        this.uploads.push(this.handoff(s));
+      }
       if (s.kind === "ask") {
         this.ask = { question: s.question, options: s.options };
         this.stop("ask");
         return;
       }
     }
+  }
+
+  private lessons = new Set<string>();
+  private handoffs = new Set<string>();
+  // An agent passed part of the job to another agent, the way a teammate would.
+  private async handoff(h: { agent: AgentId; title: string; brief: string }) {
+    const { db, userId, events } = this.deps;
+    const from = AGENT[this.task.agent].name;
+    const carry = carriedLines(this.task.brief);
+    const { error } = await db.from("tasks").insert({
+      user_id: userId, game_id: this.task.game_id, agent: h.agent, title: h.title.slice(0, 120),
+      brief: `${h.brief}\n\n${from} handed this over while working on "${this.task.title}".${carry ? `\n\n${carry}` : ""}`,
+      priority: this.task.priority, status: "queued", requested_by: this.task.agent, parent_id: null,
+      needs_studio: AGENT[h.agent].studio, estimate: 0.03,
+    });
+    events.add(this.task.id, error ? "error" : "note", error ? `Couldn't hand over to ${AGENT[h.agent].name}: ${error.message}` : `Handed "${h.title}" to ${AGENT[h.agent].name}`);
   }
 
   private assets = new Set<string>();

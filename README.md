@@ -8,6 +8,8 @@ It's a desktop app for Windows and Mac, a website for everything else, and your 
 
 ![Home](docs/images/home.jpg)
 
+**New here? Read the [full guide](docs/GUIDE.md).** It covers what every page does, how the agents work and learn, and how to set everything up step by step. It's also in the app under **Guide**.
+
 ## Contents
 
 - [What's in it](#whats-in-it)
@@ -64,6 +66,16 @@ It's a desktop app for Windows and Mac, a website for everything else, and your 
 | Reviewer | Money, saves and security before anything ships |
 | Art Director | Judges builds, models and art against your references and sends weak work back |
 | Liveops | Reads player numbers and plans the next update |
+
+### Real agents that learn
+
+Every agent is a full Claude Code (or Codex) agent session. It plans, uses tools, edits files, runs commands, drives Studio through MCP, screenshots its own work and fixes it. On top of that:
+
+- **They learn from you.** Every approve, send back and reject, with your note, comes back to that agent on every future task as a rule, along with pictures of work you approved and the Art Director's notes. Agents also write down lessons as they work, into your vault under `Lessons`, where you can edit them. See what each one has learned on its Team page.
+- **They hand work to each other.** Builder can pass a playtest to Playtest, and Scenic can ask the Librarian for a model, mid-task.
+- **Autopilot.** Turn it on for a game, write its goal, and the Lead keeps planning the next most useful work by itself while usage allows.
+
+Nobody can retrain the model itself on a Claude or Codex plan, so this is how the crew gets better: feedback, written down and brought to every job.
 
 ## Install
 

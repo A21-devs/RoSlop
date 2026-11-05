@@ -6,6 +6,8 @@ import type { AgentId, MarketItem, Pitch, PitchDetails, PitchStat, Priority, Row
 //   PROOF: shots/shop-b.png | Phone shop, option B | Buy button sits under your thumb
 //   DONE: Lava now ticks 20 dmg every 0.5s, weekly reset uses os.time
 //   ASSET: Gem | 14520198334   (a library item is on Roblox now)
+//   LESSON: The owner wants rounder edges on every prop   (remembered for next time)
+//   HANDOFF: playtest | Test the new lava timing | What changed and what to check
 // The Lead also ends its reply with a ```tasks block of JSON.
 
 export type Signal =
@@ -13,13 +15,20 @@ export type Signal =
   | { kind: "proof"; path: string; title: string; note: string }
   | { kind: "done"; summary: string }
   | { kind: "asset"; name: string; id: string }
-  | { kind: "preview"; id: string; path: string };
+  | { kind: "preview"; id: string; path: string }
+  | { kind: "lesson"; text: string }
+  | { kind: "handoff"; agent: AgentId; title: string; brief: string };
 
 export function readSignal(line: string): Signal | null {
-  const m = line.trim().match(/^(ASK|PROOF|DONE|ASSET|PREVIEW):\s*(.+)$/);
+  const m = line.trim().match(/^(ASK|PROOF|DONE|ASSET|PREVIEW|LESSON|HANDOFF):\s*(.+)$/);
   if (!m) return null;
   const parts = m[2].split("|").map(p => p.trim()).filter(Boolean);
   if (m[1] === "ASK") return { kind: "ask", question: parts[0], options: parts.slice(1) };
+  if (m[1] === "LESSON") return { kind: "lesson", text: m[2].trim() };
+  if (m[1] === "HANDOFF") {
+    const agent = parts[0]?.toLowerCase() as AgentId;
+    return AGENT[agent] && parts[1] ? { kind: "handoff", agent, title: parts[1], brief: parts.slice(2).join(" | ") || parts[1] } : null;
+  }
   if (m[1] === "PREVIEW") return parts[0] && parts[1] ? { kind: "preview", id: parts[0], path: parts[1] } : null;
   if (m[1] === "ASSET") {
     const id = parts[1]?.match(/\d{5,}/)?.[0];
